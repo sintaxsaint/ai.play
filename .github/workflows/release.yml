@@ -1,0 +1,72 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install pyinstaller scikit-learn
+
+      - name: Install NSIS
+        run: choco install nsis -y
+        shell: powershell
+
+      - name: Build exe with PyInstaller
+        run: |
+          cd python
+          pyinstaller --onefile --name aip `
+            --add-data "lexer.py;." `
+            --add-data "parser.py;." `
+            --add-data "ast_nodes.py;." `
+            --add-data "interpreter.py;." `
+            --add-data "runtime.py;." `
+            --add-data "format_detector.py;." `
+            --add-data "memory_engine.py;." `
+            --add-data "skills_engine.py;." `
+            --add-data "module_engine.py;." `
+            --add-data "user_memory.py;." `
+            --add-data "server.py;." `
+            --add-data "ui_server.py;." `
+            --add-data "intent_engine.py;." `
+            --add-data "voice_engine.py;." `
+            --add-data "video_engine.py;." `
+            --icon=aip.ico `
+            aiplay.py
+        shell: powershell
+
+      - name: Build installer with NSIS
+        run: |
+          cd python
+          & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
+        shell: powershell
+
+      - name: Delete existing latest release
+        run: gh release delete latest --yes
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Create latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest Build
+          body: Built automatically from the latest commit on main.
+          files: python/aiplay-setup.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
