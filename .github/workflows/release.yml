@@ -28,7 +28,7 @@ jobs:
       - name: Build exe with PyInstaller
         run: |
           cd python
-          pyinstaller --onefile --name aip `
+          pyinstaller --onedir --name aip `
             --add-data "lexer.py;." `
             --add-data "parser.py;." `
             --add-data "ast_nodes.py;." `
