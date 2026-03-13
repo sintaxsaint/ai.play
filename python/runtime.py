@@ -142,16 +142,44 @@ def respond(context_bundle, model_type='factual', persona='', history=None,
     first = context_bundle[0]
     best_score, best_q, best_answer = first[0], first[1], first[2]
 
+    def _clean(text):
+        """Strip internal metadata, conversation echoes, confidence labels."""
+        import re
+        # Remove reasoning prefixes
+        text = re.sub(r'^Reasoning \(confidence [\d%]+\):\s*', '', text)
+        text = re.sub(r'Also relevant \([\d%]+\):\s*', '', text)
+        # Remove echoed conversation history (User: ... AI: ... patterns)
+        text = re.sub(r'(User:\s*[^\n]+\n?)+', '', text)
+        text = re.sub(r'(AI:\s*[^\n]+\n?)+', '', text)
+        # Collapse whitespace
+        text = ' '.join(text.split())
+        return text.strip()
+
+    # Filter context to only actual knowledge pairs, not memory echoes
+    knowledge = []
+    for score, q, a in context_bundle:
+        a_clean = _clean(a)
+        if a_clean and len(a_clean) > 10:
+            knowledge.append((score, q, a_clean))
+
+    if not knowledge:
+        return "I am not sure about that."
+
+    best_score, best_q, best_answer = knowledge[0]
+
     if best_score < 0.05:
-        answer = "I'm not sure about that."
+        answer = "I am not sure about that."
     elif model_type == 'fun':
-        answer = f"{best_answer} — pretty interesting stuff!"
+        answer = f"{best_answer} — pretty interesting!"
     elif model_type == 'thinking':
-        lines = [f"Reasoning (confidence {best_score:.0%}): {best_answer}"]
-        for score, q, a in context_bundle[1:3]:
-            if score > 0.02:
-                lines.append(f"  Also relevant ({score:.0%}): {a}")
-        answer = '\n'.join(lines)
+        # Pick the best answer and supplement with additional context
+        parts = [best_answer]
+        seen = {best_answer}
+        for score, q, a in knowledge[1:3]:
+            if score > 0.1 and a not in seen and len(a) > 20:
+                parts.append(a)
+                seen.add(a)
+        answer = ' '.join(parts)
     else:
         answer = best_answer
 
