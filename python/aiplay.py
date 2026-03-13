@@ -1,22 +1,70 @@
 #!/usr/bin/env python3
 """
 ai.play — live compiler and runtime
-Every run reads the source fresh. Edit your .aip file, run it, changes apply instantly.
+Every run reads ALL source files fresh from disk.
+Edit any .py or .aip file, run again — changes apply instantly, no rebuild needed.
 """
 
 import sys
 import os
+import importlib.util
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-if _HERE not in sys.path:
-    sys.path.insert(0, _HERE)
+# ── find install directory ────────────────────────────────────────────────────
+# sys.executable = path to aip.exe (frozen) or python (dev)
+# For PyInstaller --onedir, all .py files sit next to the exe
+# __file__ is wrong inside a frozen exe — always use sys.executable
 
-from lexer       import Lexer,       LexError
-from parser      import Parser,      ParseError
-from interpreter import Interpreter, RuntimeError as AIPRuntimeError
+if getattr(sys, 'frozen', False):
+    # Running as compiled exe
+    _HERE = os.path.dirname(os.path.abspath(sys.executable))
+else:
+    # Running as plain python aiplay.py
+    _HERE = os.path.dirname(os.path.abspath(__file__))
+
+# ── dynamic disk loader ───────────────────────────────────────────────────────
+
+def _load(name):
+    path = os.path.join(_HERE, f"{name}.py")
+    if not os.path.exists(path):
+        print(f"[ai.play] Missing module: {path}")
+        sys.exit(1)
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod  = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+# Load all modules from disk
+_load('ast_nodes')
+_load('lexer')
+_load('runtime')
+_load('format_detector')
+_load('memory_engine')
+_load('skills_engine')
+_load('module_engine')
+_load('user_memory')
+_load('intent_engine')
+_load('voice_engine')
+_load('video_engine')
+_load('server')
+_load('ui_server')
+_load('notify_engine')
+_load('vision_trainer')
+_load('ai_yes')
+_load('call_handler')
+_load('interpreter')
+_load('parser')
+
+from lexer       import LexError
+from parser      import ParseError
+from interpreter import Interpreter
+from interpreter import RuntimeError as AIPRuntimeError
+
+# ─────────────────────────────────────────────────────────────────────────────
 
 BANNER = """
- ai.play v0.1 — The language of AIs
+ ai.play v0.6 — The language of AIs
+ github.com/sintaxsaint/ai.play
 """
 
 HELP = """Usage:
@@ -25,12 +73,18 @@ HELP = """Usage:
   aip help               Show this message
 
 Files are live-compiled — edit and re-run instantly, no build step.
+Drop updated .py files into the install directory to patch without reinstalling.
 """
 
 
 def live_compile(path):
     with open(path, 'r', encoding='utf-8') as f:
         source = f.read()
+    _load('ast_nodes')
+    _load('lexer')
+    _load('parser')
+    from lexer  import Lexer
+    from parser import Parser
     tokens = Lexer(source).tokenize()
     return Parser(tokens).parse()
 
