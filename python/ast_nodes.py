@@ -128,3 +128,129 @@ class NumberLit(Node):
 class PathLit(Node):
     def __init__(self, value):
         self.value = value
+
+# ─── v0.6 nodes ───────────────────────────────────────────
+
+class AINotify(Node):
+    """ai.notify(channel, target)"""
+    def __init__(self, channel, target):
+        self.channel = channel
+        self.target  = target
+
+class AIYesNode(Node):
+    """ai.yes(target)"""
+    def __init__(self, target):
+        self.target = target
+
+class VisionTrain(Node):
+    """vision.train(label, path)"""
+    def __init__(self, label, path):
+        self.label = label
+        self.path  = path
+
+class OnEvent(Node):
+    """on.connect() / on.disconnect() / on.silence(N) / on.keyword(word) / on.detect(label)"""
+    def __init__(self, event, param, body):
+        self.event = event   # connect | disconnect | silence | keyword | detect
+        self.param = param   # seconds for silence, word for keyword, label for detect
+        self.body  = body    # list of statements
+
+class IfStmt(Node):
+    """if(condition): body"""
+    def __init__(self, condition, body, else_body=None):
+        self.condition = condition
+        self.body      = body
+        self.else_body = else_body or []
+
+class AIFallback(Node):
+    """ai.fallback(message)"""
+    def __init__(self, message):
+        self.message = message
+
+class AILog(Node):
+    """ai.log(path)"""
+    def __init__(self, path):
+        self.path = path
+
+class LogCall(Node):
+    """log(value)"""
+    def __init__(self, value):
+        self.value = value
+
+class NotifyCall(Node):
+    """notify.email(...) / notify.sms(...) / notify.discord(...) / notify.webhook(...)"""
+    def __init__(self, channel, message, attachment=None):
+        self.channel    = channel
+        self.message    = message
+        self.attachment = attachment
+
+class TransferCall(Node):
+    """ai.transfer(number)"""
+    def __init__(self, number):
+        self.number = number
+
+class AIMemory(Node):
+    """ai.memory(mode[, url])"""
+    def __init__(self, mode, url=None):
+        self.mode = mode
+        self.url  = url
+
+class TrainEmbed(Node):
+    """train.embed(path)"""
+    def __init__(self, path):
+        self.path = path
+
+class TestUI(Node):
+    """test.ui(yes)"""
+    def __init__(self, val):
+        self.val = val
+
+class WhileLoop(Node):
+    """while(condition): body"""
+    def __init__(self, condition, body):
+        self.condition = condition
+        self.body      = body
+
+class DefBlock(Node):
+    """def name(): body"""
+    def __init__(self, name, body):
+        self.name = name
+        self.body = body
+
+class CallDef(Node):
+    """name()"""
+    def __init__(self, name):
+        self.name = name
+
+class Assign(Node):
+    """Name = expr"""
+    def __init__(self, name, expr):
+        self.name = name
+        self.expr = expr
+
+class PrintStmt(Node):
+    """print(val)"""
+    def __init__(self, val):
+        self.val = val
+
+class InputExpr(Node):
+    """input()"""
+    pass
+
+class EmbedExpr(Node):
+    def __init__(self, inner): self.inner = inner
+
+class TokenizeExpr(Node):
+    def __init__(self, inner): self.inner = inner
+
+class SimilarizeExpr(Node):
+    def __init__(self, inner): self.inner = inner
+
+class RespondExpr(Node):
+    def __init__(self, inner): self.inner = inner
+
+class Literal(Node):
+    def __init__(self, value): self.value = value
+
+class Program(Node):
+    def __init__(self, stmts): self.stmts = stmts

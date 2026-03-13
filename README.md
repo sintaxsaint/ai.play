@@ -4,7 +4,7 @@ A programming language for building AI systems. Write `.aip` files. Run them wit
 
 No build step. No config. Live-compiled — edit the file, run again, changes apply instantly.
 
-**Version:** 0.5 (Python reference implementation)  
+**Version:** 0.6  
 **Repo:** github.com/sintaxsaint/ai.play  
 **Modules:** sintaxsaint.pages.dev  
 **Community:** https://github.com/sintaxsaint/ai.play/issues
@@ -13,17 +13,9 @@ No build step. No config. Live-compiled — edit the file, run again, changes ap
 
 ## Install (Windows)
 
-Run `aiplay-setup.exe`. It will:
-- Install to `C:\Program Files\aiplay\`
-- Add `aip` to your PATH
-- Register `.aip` files so you can double-click them to run
-- Add right-click menu options: Run / Syntax Check / Edit
+Run `aiplay-setup.exe`. Installs to `C:\Program Files\aiplay\`, adds `aip` to PATH, registers `.aip` file associations.
 
-To build the installer yourself:
-```
-build_windows.bat
-```
-Requires Python 3.10+, PyInstaller, and NSIS.
+To build the installer yourself: run `build_windows.bat` (requires Python 3.10+, PyInstaller, NSIS).
 
 ---
 
@@ -41,109 +33,111 @@ Response = respond(use)
 print(Response)
 ```
 
-Save as `hello.aip`. Run with `aip hello.aip`.
-
 ---
 
 ## Language Reference
 
 ### Required first line
-
 ```
 ai.enable()
 ```
 
-Every `.aip` file must start with this.
-
 ---
 
 ### Model
-
 ```
-ai.model(factual)       # accurate, grounded responses
-ai.model(fun)           # more creative responses
-ai.model(thinking)      # slower, more reasoned responses
-ai.model(custom, ./spec) # custom model from a spec file
+ai.model(factual)
+ai.model(fun)
+ai.model(thinking)
+ai.model(custom, ./spec)
 ```
 
 ---
 
 ### Capabilities
-
 ```
-ai.web(yes)             # web search via DuckDuckGo (no API key needed)
-ai.vision(normal)       # single image input
-ai.vision(live)         # live webcam input
-ai.diffusion(yes)       # image generation output
-ai.video(yes)           # text-to-video output
-ai.voice(yes)           # speech input + speech output (phone call mode)
-ai.persona("text")      # system prompt / personality
+ai.web(yes)
+ai.vision(normal)
+ai.vision(live)
+ai.diffusion(yes)
+ai.video(yes)
+ai.voice(yes)
+ai.persona("You are a helpful assistant.")
 ```
 
 ---
 
 ### Memory
-
 ```
-ai.memory(rule)         # pattern-matched memory, persists to JSON
-ai.memory(generative)   # Generative Memory architecture — concepts extracted,
-                        # weighted, decayed over time, evolved not appended
-ai.memory(upload)       # persistent memory that survives user disconnects,
-                        # designed for website deployments
+ai.memory(rule)
+ai.memory(generative)
+ai.memory(upload)
+ai.memory(upload, https://memory.yoursite.com)
 ```
 
-Generative Memory is based on the architecture published at  
-`github.com/sintaxsaint/generative-AI-memory`
+---
+
+### ai.yes — one-line AI clone
+Finds the best open-licence equivalent on HuggingFace, checks licence (MIT/Apache 2.0 only), downloads weights, auto-configures capabilities.
+
+```
+ai.yes(chatgpt)
+ai.yes(claude)
+ai.yes(copilot)
+ai.yes(gemini)
+ai.yes(sora)
+ai.yes(midjourney)
+ai.yes(whisper)
+ai.yes(elevenlabs)
+```
+
+Full local ChatGPT equivalent:
+```
+ai.enable()
+ai.yes(chatgpt)
+test.ui(yes)
+```
 
 ---
 
 ### Skills
-
 ```
 ai.skills(./skills/)
 ```
 
-Loads a folder of `.skill` files. The AI auto-selects the right skill per query.
-
 `.skill` file format:
 ```
 name: Customer Support
-keywords: help, problem, issue, broken, refund, complaint
+keywords: help, problem, issue, broken, refund
 tone: friendly and patient
 priority: 10
 ---
-how do I return an item:Submit a return request within 30 days via the returns page
-what are your opening hours:We are open Monday to Friday, 9am to 5pm
+how do I return an item:Submit a return request within 30 days
 ```
 
 ---
 
 ### Custom Modules
-
 ```
-custom.module(python)                         # loads from system modules dir
-custom.module(./mymodules/stripe.aimod)       # loads from explicit path
+custom.module(python)
+custom.module(./mymodules/stripe.aimod)
 custom.module(javascript)
-custom.module(myapi)
 ```
 
-Stack as many as you want. Each module adds specialised knowledge to the responder. The intent engine picks the right module per query automatically.
-
-To create a blank module template:
+Create a blank template:
 ```
 make.module(javascript)
 ```
-This generates `javascript.aimod` in the current directory. Fill in the pairs and drop it in your system modules folder.
 
-**System modules directory:**
+System modules directory:
 - Windows: `C:\Program Files\aiplay\modules\`
-- Linux / Mac: `~/.aiplay/modules/`
+- Linux/Mac: `~/.aiplay/modules/`
 
-**Module not found?** Find and share modules at:
+Find and share modules:
 - https://sintaxsaint.pages.dev
 - https://github.com/sintaxsaint/ai.play/issues
 
-`.aimod` file format:
+`.aimod` format:
 ```
 name: Python
 version: 1.0
@@ -160,24 +154,21 @@ what is a list comprehension:[x for x in items if condition]
 ---
 
 ### Training Data
-
 ```
 train.embed(./data.data)
 ```
 
-Auto-detects format. Supported: ai.play native pairs, OpenAI JSONL, JSON pairs, CSV, PDF, DOCX, plain text, code files.
+Auto-detects: ai.play native pairs, OpenAI JSONL, JSON, CSV, PDF, DOCX, plain text, code files.
 
 Native format:
 ```
 Training.data(pairs):
-question:answer
 what is gravity:The force that attracts objects toward each other
 ```
 
 ---
 
 ### Pipeline
-
 ```
 Input = input()
 use = embed(Similaritize(tokenize(Input)))
@@ -185,15 +176,30 @@ Response = respond(use)
 print(Response)
 ```
 
-- `tokenize()` — converts text, image, or audio to tokens automatically
-- `Similaritize()` — retrieves the original prompt plus semantically similar training pairs from all enabled sources (training data, web, memory, skills, modules, live camera)
+- `tokenize()` — converts text, image, or audio to tokens
+- `Similaritize()` — retrieves semantically similar training pairs from all enabled sources
 - `embed()` — TF-IDF sparse vector embedding
-- `respond()` — retrieval-based response; intent engine decides which modalities to activate
+- `respond()` — retrieval-based response with intent routing
+
+---
+
+### Conditionals
+```
+if(Input contains help):
+    print(Here is the help section)
+else():
+    print(I will do my best)
+```
+
+Supported conditions:
+- `Input contains "word"`
+- `Variable == "value"`
+- `Variable != "value"`
+- `count > 5`  `count < 10`  `count >= 3`
 
 ---
 
 ### Loops and Definitions
-
 ```
 while(yes):
     Input = input()
@@ -215,8 +221,106 @@ while(yes):
 
 ---
 
-### Server
+### Error Handling
+```
+ai.fallback(Sorry, I do not know the answer to that)
+```
 
+When `respond()` has no good answer, returns the fallback message instead.
+
+---
+
+### Logging
+```
+ai.log(./output.log)
+
+while(yes):
+    Input = input()
+    use = embed(Similaritize(tokenize(Input)))
+    Response = respond(use)
+    print(Response)
+    log(Response)
+```
+
+---
+
+### Notifications
+```
+ai.notify(email, you@example.com)
+ai.notify(sms, +441234567890)
+ai.notify(webhook, https://yoursite.com/alert)
+ai.notify(discord, https://discord.com/api/webhooks/...)
+```
+
+Then inside event hooks:
+```
+on.detect(stranger):
+    notify.discord(Unknown person detected)
+    notify.email(Intruder alert)
+    notify.sms(Check camera)
+```
+
+Email uses env vars: `AIPLAY_SMTP_HOST`, `AIPLAY_SMTP_USER`, `AIPLAY_SMTP_PASS`, `AIPLAY_SMTP_FROM`.  
+SMS uses `AIPLAY_SMS_GATEWAY` (any HTTP SMS provider URL).
+
+---
+
+### Trainable Vision
+```
+ai.vision(live)
+
+vision.train(elliot, ./known/elliot/)
+vision.train(stranger, ./known/strangers/)
+
+on.detect(elliot):
+    print(Welcome home)
+
+on.detect(stranger):
+    notify.discord(Unknown person at door)
+```
+
+Built-in labels without training: `motion`, `face`, `person`.
+
+Requires `pip install opencv-python` for real detection. Runs in stub mode otherwise.
+
+---
+
+### Phone Call Lifecycle
+```
+ai.voice(yes)
+
+on.connect():
+    print(Thank you for calling, how can I help?)
+
+on.disconnect():
+    print(Goodbye)
+    log(session)
+
+on.silence(10):
+    print(Are you still there?)
+
+on.keyword(speak to human):
+    print(Transferring you now)
+    ai.transfer(+441234567890)
+
+while(yes):
+    myPipeline()
+```
+
+---
+
+### Output Control
+```
+output.deny(large_numbers)
+output.deny(code)
+output.deny(explicit)
+```
+
+Lets deployers restrict certain output types. Useful for child-safe deployments, corporate restrictions, or matching the limits of a specific product.
+
+---
+
+### Server
 ```
 out.in(1234)
 out.in(1234, user=auto)
@@ -224,56 +328,106 @@ out.in(1234, user=auto, storage=./shared/)
 out.in(1234, user=auto, storage=./shared/, upload=https://memory.yoursite.com)
 ```
 
-Starts an HTTP server on port 7731. The number is the API key.
-
-**User persistence** — the website passes a username in the request. The AI looks up that user's memory in the storage directory. If found, it loads it. If not, it creates a new memory for that user. On disconnect, memory is saved locally and optionally uploaded to the remote URL.
-
-**Shared storage** — point multiple AI instances at the same `storage=` directory (NFS mount, network share, etc). All instances share user memories. Data centre ready.
-
 API endpoints:
 ```
-POST /input          — send a message, get a response
-  Headers: X-AIP-Key: 1234
-           X-AIP-User: username   (optional)
-  Body:    {"input": "hello", "user": "elliot"}
-
-POST /disconnect     — signal user disconnect, triggers memory save + upload
-POST /users          — list all known users in storage
-GET  /health         — status check
+POST /input        — {"input": "hello", "user": "elliot"}
+POST /disconnect   — signal user disconnect
+GET  /users        — list all known users
+GET  /health       — status check
 ```
 
-Tunnel fallback chain (tried in order):
-1. Direct port forward (best performance)
-2. Cloudflare Tunnel
-3. ngrok
-4. bore.pub
-5. localhost.run
+Headers: `X-AIP-Key: 1234`  `X-AIP-User: username`
+
+Tunnel fallback: Cloudflare Tunnel → ngrok → bore.pub → localhost.run
 
 ---
 
 ### Test UI
-
 ```
 test.ui(yes)
 ```
 
-Opens a local browser chat interface for testing. Dark, modern. No external dependencies.
+Opens a local browser chat interface.
 
 ---
 
-## Full Example — Website Deployment
+## Full Examples
 
+### Website deployment
 ```
 ai.enable()
 ai.model(factual)
 ai.memory(upload, https://memory.mysite.com)
 ai.skills(./skills/)
+ai.notify(email, admin@mysite.com)
+ai.notify(discord, https://discord.com/api/webhooks/...)
+ai.fallback(I am not sure about that, please contact support)
+ai.log(./logs/chat.log)
 ai.persona("You are a helpful assistant for MyShop.")
 custom.module(customer_support)
-custom.module(returns_policy)
 out.in(9999, user=auto, storage=/mnt/shared/aiplay/)
 
 train.embed(./knowledge.data)
+
+def pipeline():
+    Input = input()
+    use = embed(Similaritize(tokenize(Input)))
+    Response = respond(use)
+    print(Response)
+    log(Response)
+
+while(yes):
+    pipeline()
+```
+
+### Security camera
+```
+ai.enable()
+ai.model(factual)
+ai.vision(live)
+ai.notify(email, elliot@example.com)
+ai.notify(discord, https://discord.com/api/webhooks/...)
+ai.log(./security.log)
+
+vision.train(elliot, ./known/elliot/)
+vision.train(car, ./known/mycar/)
+
+on.detect(elliot):
+    print(Welcome home)
+
+on.detect(motion):
+    notify.discord(Motion detected)
+    log(motion)
+
+on.detect(stranger):
+    notify.email(Unknown person detected)
+    notify.discord(Intruder alert)
+    log(intruder)
+```
+
+### Phone assistant
+```
+ai.enable()
+ai.model(factual)
+ai.voice(yes)
+ai.memory(generative)
+ai.log(./calls.log)
+custom.module(customer_support)
+
+train.embed(./faq.data)
+
+on.connect():
+    print(Thank you for calling, how can I help you today?)
+
+on.disconnect():
+    log(call ended)
+
+on.silence(15):
+    print(Are you still there?)
+
+on.keyword(speak to human):
+    print(Connecting you to a team member now)
+    ai.transfer(+441234567890)
 
 def pipeline():
     Input = input()
@@ -285,19 +439,12 @@ while(yes):
     pipeline()
 ```
 
-Ten machines running this same `.aip` file, all pointing at `/mnt/shared/aiplay/` — any user connects to any machine and their memory follows them.
-
----
-
-## Full Example — Local Dev Tool
-
+### Local dev tool
 ```
 ai.enable()
-ai.model(thinking)
+ai.yes(chatgpt)
 ai.memory(generative)
-custom.module(python)
-custom.module(javascript)
-custom.module(git)
+ai.log(./dev.log)
 test.ui(yes)
 
 train.embed(./my_codebase_docs.data)
@@ -315,24 +462,27 @@ while(yes):
 
 ```
 aiplay/
-  aiplay.py           entry point — CLI, live-compile loop
+  aiplay.py           CLI entry point, live-compile loop
   lexer.py            tokeniser
-  parser.py           recursive descent parser → AST
+  parser.py           recursive descent parser
   ast_nodes.py        AST node classes
   interpreter.py      tree-walk interpreter
   runtime.py          embedder, cosine similarity, respond(), web_search()
   format_detector.py  auto-detects training file formats
   memory_engine.py    RuleMemory + GenerativeMemory
   skills_engine.py    .skill file loader and query routing
-  module_engine.py    .aimod file loader, make.module() template generator
+  module_engine.py    .aimod loader, make.module() template generator
   user_memory.py      per-user session memory manager
   server.py           out.in() HTTP server + tunnel fallback chain
   ui_server.py        test.ui() browser chat interface
   intent_engine.py    intent analysis and modality routing
-  voice_engine.py     STT (faster-whisper → SpeechRecognition → fallback)
-                      TTS (pyttsx3 → espeak → SAPI → say)
-  video_engine.py     text-to-video (ModelScope → Zeroscope → AnimateDiff → stub)
-  build_windows.bat   builds aip.exe via PyInstaller then runs NSIS
+  voice_engine.py     STT + TTS with fallback chains
+  video_engine.py     text-to-video with fallback chain
+  notify_engine.py    email, SMS, webhook, Discord notifications
+  vision_trainer.py   trainable object/face detection, live vision loop
+  ai_yes.py           HuggingFace model finder with licence checker
+  call_handler.py     phone call lifecycle event hooks
+  build_windows.bat   builds aip.exe then runs NSIS
   installer.nsi       NSIS installer script
   aip.ico             file type icon
 ```
@@ -341,13 +491,14 @@ aiplay/
 
 ## Roadmap
 
-- **ai.play fast** — LLVM/native compiled interpreter. Same `.aip` files, zero syntax changes, full CPU+GPU speed. Planned after the Python reference implementation is complete and stable. The Python version is the spec.
-- **Module registry** — browse and submit modules at sintaxsaint.pages.dev
-- **GitHub Actions** — auto-deploy workflow
+- **v0.7** — `pip install aiplay`, Google Colab support, `aiplay.run()` Python API
+- **ai.play fast** — LLVM/native compiled interpreter, same `.aip` files, full speed
 
 ---
 
 ## Licence
 
 Free. No ads. No data collection.  
-Built by sintaxsaint — github.com/sintaxsaint
+Built by sintaxsaint — github.com/sintaxsaint  
+Modules: sintaxsaint.pages.dev  
+Community: https://github.com/sintaxsaint/ai.play/issues

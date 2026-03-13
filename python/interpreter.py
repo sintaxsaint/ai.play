@@ -57,6 +57,18 @@ class Interpreter:
         # Custom module engine
         self.module_engine = None
 
+        # v0.6 engines
+        self.notify_engine  = None
+        self.vision_trainer = None
+        self.live_vision    = None
+        self.call_handler   = None
+        self.ai_yes         = None
+        self.fallback_msg   = None
+        self.log_path       = None
+        self.log_file       = None
+        self.variables      = {}     # persistent variables across turns
+        self.event_hooks    = {}     # label -> callable for on.detect
+
         # Current user session (set by server per request)
         self.current_user_session = None
 
@@ -249,6 +261,141 @@ class Interpreter:
                 except KeyboardInterrupt:
                     print("\n[ai.play] Loop stopped.")
                     break
+            return
+
+        # ─── ai.yes ───────────────────────────────────
+        if isinstance(node, AIYesNode):
+            self._require_enabled(node)
+            from ai_yes import AIYes
+            self.ai_yes = AIYes()
+            config = self.ai_yes.activate(node.target)
+            if config:
+                # Auto-enable caps
+                for cap in config.get('caps', []):
+                    self.caps[cap] = True
+                # Auto-load modules
+                if self.module_engine is None and config.get('modules'):
+                    from module_engine import ModuleEngine
+                    self.module_engine = ModuleEngine()
+                for mod in config.get('modules', []):
+                    if self.module_engine:
+                        self.module_engine.load(mod)
+                # Set model mode
+                self.model_mode = config.get('model_mode', 'factual')
+            return
+
+        # ─── ai.notify ────────────────────────────────────
+        if isinstance(node, AINotify):
+            self._require_enabled(node)
+            from notify_engine import NotifyEngine
+            if self.notify_engine is None:
+                self.notify_engine = NotifyEngine()
+            self.notify_engine.register(node.channel, node.target)
+            return
+
+        # ─── ai.fallback ──────────────────────────────────
+        if isinstance(node, AIFallback):
+            self._require_enabled(node)
+            self.fallback_msg = node.message
+            return
+
+        # ─── ai.log ───────────────────────────────────────
+        if isinstance(node, AILog):
+            self._require_enabled(node)
+            self.log_path = node.path
+            import builtins
+            self.log_file = builtins.open(node.path, 'a', encoding='utf-8')
+            print(f"[ai.play] Logging to {node.path}")
+            return
+
+        # ─── vision.train ─────────────────────────────────
+        if isinstance(node, VisionTrain):
+            self._require_enabled(node)
+            from vision_trainer import VisionTrainer
+            if self.vision_trainer is None:
+                self.vision_trainer = VisionTrainer()
+            self.vision_trainer.train(node.label, node.path)
+            return
+
+        # ─── on.event ─────────────────────────────────────
+        if isinstance(node, OnEvent):
+            self._require_enabled(node)
+            body = node.body
+
+            def make_hook(b):
+                def hook(*args):
+                    for s in b:
+                        self.exec_stmt(s)
+                return hook
+
+            h = make_hook(body)
+
+            if node.event in ('connect', 'disconnect'):
+                from call_handler import CallHandler
+                if self.call_handler is None:
+                    self.call_handler = CallHandler()
+                self.call_handler.on(node.event, h)
+
+            elif node.event == 'silence':
+                from call_handler import CallHandler
+                if self.call_handler is None:
+                    self.call_handler = CallHandler()
+                self.call_handler.on('silence', h, param=node.param)
+
+            elif node.event == 'keyword':
+                from call_handler import CallHandler
+                if self.call_handler is None:
+                    self.call_handler = CallHandler()
+                self.call_handler.on('keyword', h, param=node.param)
+
+            elif node.event == 'detect':
+                # Register vision detection hook
+                self.event_hooks[node.param or node.event] = h
+                if self.vision_trainer and self.caps.get('vision'):
+                    from vision_trainer import LiveVisionLoop
+                    if self.live_vision is None:
+                        self.live_vision = LiveVisionLoop(
+                            self.vision_trainer,
+                            self.event_hooks,
+                            self.notify_engine,
+                        )
+                        self.live_vision.start()
+            return
+
+        # ─── notify.channel ───────────────────────────────
+        if isinstance(node, NotifyCall):
+            if self.notify_engine:
+                self.notify_engine.send(node.channel, node.message, node.attachment)
+            else:
+                print(f"[ai.play] notify.{node.channel}: no ai.notify() configured")
+            return
+
+        # ─── log() ────────────────────────────────────────
+        if isinstance(node, LogCall):
+            val = self.variables.get(node.value, node.value)
+            msg = str(val)
+            if self.log_file:
+                import time
+                self.log_file.write("[" + time.strftime("%Y-%m-%d %H:%M:%S") + "] " + msg + chr(10))
+                self.log_file.flush()
+            else:
+                print(f"[log] {msg}")
+            return
+
+        # ─── if / else ────────────────────────────────────
+        if isinstance(node, IfStmt):
+            if self._eval_condition(node.condition):
+                for s in node.body:
+                    self.exec_stmt(s)
+            else:
+                for s in node.else_body:
+                    self.exec_stmt(s)
+            return
+
+        # ─── ai.transfer ──────────────────────────────────
+        if isinstance(node, TransferCall):
+            if self.call_handler:
+                self.call_handler.transfer(node.number)
             return
 
         if isinstance(node, CustomModule):
@@ -619,6 +766,60 @@ class Interpreter:
     # ──────────────────────────────────────
     # HELPERS
     # ──────────────────────────────────────
+
+    def _eval_condition(self, condition):
+        """Evaluate a simple condition string."""
+        import re
+        cond = condition.strip()
+
+        # Variable contains string: Input contains "hello"
+        m = re.match(r'(\w+)\s+contains\s+"?([^"]+)"?', cond, re.IGNORECASE)
+        if m:
+            var_name, substring = m.group(1), m.group(2)
+            val = str(self.variables.get(var_name, ''))
+            return substring.lower() in val.lower()
+
+        # Variable equals value: Input == "hello"
+        m = re.match(r'(\w+)\s*==\s*"?([^"]+)"?', cond)
+        if m:
+            var_name, value = m.group(1), m.group(2)
+            val = str(self.variables.get(var_name, ''))
+            return val.strip().lower() == value.strip().lower()
+
+        # Variable not equals: Input != "hello"
+        m = re.match(r'(\w+)\s*!=\s*"?([^"]+)"?', cond)
+        if m:
+            var_name, value = m.group(1), m.group(2)
+            val = str(self.variables.get(var_name, ''))
+            return val.strip().lower() != value.strip().lower()
+
+        # Numeric comparison: count > 5
+        m = re.match(r'(\w+)\s*([><=!]+)\s*(\d+)', cond)
+        if m:
+            var_name, op, num = m.group(1), m.group(2), int(m.group(3))
+            val = self.variables.get(var_name, 0)
+            try:
+                val = float(val)
+                if op == '>':  return val > num
+                if op == '<':  return val < num
+                if op == '>=': return val >= num
+                if op == '<=': return val <= num
+                if op == '==': return val == num
+                if op == '!=': return val != num
+            except Exception:
+                pass
+
+        # yes/no/true/false literals
+        if cond.lower() in ('yes', 'true', '1'):
+            return True
+        if cond.lower() in ('no', 'false', '0'):
+            return False
+
+        # Variable alone — truthy check
+        if cond in self.variables:
+            return bool(self.variables[cond])
+
+        return False
 
     def _require_enabled(self, node):
         if not self.enabled:

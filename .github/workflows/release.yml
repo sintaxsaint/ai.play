@@ -22,7 +22,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install Python dependencies
-        run: pip install pyinstaller scikit-learn
+        run: pip install pyinstaller scikit-learn flask requests
 
       - name: Install NSIS
         run: choco install nsis -y
@@ -47,6 +47,11 @@ jobs:
             --add-data "intent_engine.py;." `
             --add-data "voice_engine.py;." `
             --add-data "video_engine.py;." `
+            --add-data "notify_engine.py;." `
+            --add-data "vision_trainer.py;." `
+            --add-data "ai_yes.py;." `
+            --add-data "call_handler.py;." `
+            --collect-all sklearn `
             --icon=aip.ico `
             aiplay.py
         shell: powershell

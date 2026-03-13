@@ -1,4 +1,9 @@
-from lexer import TT, Token
+"""
+ai.play parser v0.6 — clean rewrite
+Recursive descent parser producing an AST from token stream.
+"""
+
+from lexer import TT, Token, KEYWORDS
 from ast_nodes import *
 
 class ParseError(Exception):
@@ -6,15 +11,19 @@ class ParseError(Exception):
 
 class Parser:
     def __init__(self, tokens):
-        self.tokens = tokens
-        self.pos    = 0
+        self.tokens = [t for t in tokens if t.type != TT.NEWLINE] + \
+                      [Token(TT.EOF, None, 0)]
+        self.pos = 0
 
-    def peek(self, offset=0):
-        return self.tokens[self.pos + offset]
+    # ─── helpers ──────────────────────────────────────────
+
+    def peek(self):
+        return self.tokens[self.pos]
 
     def advance(self):
         t = self.tokens[self.pos]
-        self.pos += 1
+        if t.type != TT.EOF:
+            self.pos += 1
         return t
 
     def expect(self, tt):
@@ -23,269 +32,423 @@ class Parser:
             raise ParseError(f"Expected {tt} but got {t.type} ({t.value!r}) at line {t.line}")
         return t
 
-    def skip_newlines(self):
-        while self.peek().type == TT.NEWLINE:
-            self.advance()
+    def match(self, *tts):
+        return self.peek().type in tts
 
-    def parse(self):
-        stmts = []
-        self.skip_newlines()
-        while self.peek().type != TT.EOF:
-            s = self.parse_stmt()
-            if s is not None:
-                stmts.append(s)
-            self.skip_newlines()
-        return Program(stmts)
+    def eat_dot(self):
+        self.expect(TT.DOT)
 
-    def parse_block(self):
-        """Parse indented block — stmts until we hit a top-level keyword or EOF."""
-        stmts = []
-        self.skip_newlines()
-        while self.peek().type not in (TT.EOF,):
-            try:
-                s = self.parse_stmt()
-                stmts.append(s)
-                self.skip_newlines()
-            except ParseError:
+    def read_value(self):
+        """Read one value token — string, number, bool, path, ident — as a string."""
+        t = self.advance()
+        return str(t.value) if t.value is not None else ''
+
+    def read_until_rparen(self):
+        """Read all tokens until ) — returns joined string. Handles nested parens."""
+        parts = []
+        depth = 1
+        while True:
+            t = self.advance()
+            if t.type == TT.EOF:
                 break
-        return stmts
+            if t.type == TT.LPAREN:
+                depth += 1
+                parts.append(str(t.value))
+            elif t.type == TT.RPAREN:
+                depth -= 1
+                if depth == 0:
+                    break
+                parts.append(str(t.value))
+            else:
+                parts.append(str(t.value) if t.value is not None else '')
+        return ' '.join(parts)
+
+    def read_value_greedy(self):
+        """
+        Read a value that may span multiple tokens until , or )
+        Joins them with no separator — handles emails, URLs, messages.
+        """
+        parts = []
+        while not self.match(TT.RPAREN, TT.COMMA, TT.EOF):
+            t = self.advance()
+            if t.type == TT.COLON:
+                parts.append(':')
+            elif t.value is not None:
+                parts.append(str(t.value))
+        return ''.join(parts)
 
     def parse_indented_block(self):
         """
-        Parse a def or while body. Lines must be indented (start with spaces/tab).
-        Ends when we see a non-indented line or EOF.
+        Parse an indented block by consuming tokens until we hit
+        something that looks like a new top-level statement.
+        We detect this by looking for known top-level keywords.
         """
+        TOP_LEVEL = {TT.AI, TT.TRAIN, TT.TEST, TT.OUT, TT.WHILE, TT.DEF,
+                     TT.CUSTOM, TT.MAKE, TT.ON, TT.VISION_KW, TT.IF, TT.EOF}
         stmts = []
-        while True:
-            # Peek at next meaningful token — if it's at column 0 it's outside the block
-            # Since we don't track indentation in the token stream, we use a simpler rule:
-            # block ends at EOF or when we see a top-level keyword (def, while, ai, train, out, test)
-            # at the start of a line (no preceding NEWLINE consumed yet)
-            self.skip_newlines()
-            t = self.peek()
-            if t.type == TT.EOF:
-                break
-            if t.type in (TT.DEF, TT.AI, TT.TRAIN, TT.OUT, TT.TEST):
-                break
-            # Check if next token after newlines looks like a top-level statement
-            # For simplicity: collect until we can't parse a stmt
-            try:
-                s = self.parse_stmt()
+        while not self.match(*TOP_LEVEL):
+            s = self.parse_stmt()
+            if s is not None:
                 stmts.append(s)
-            except ParseError:
-                break
         return stmts
+
+    # ─── top-level parse ──────────────────────────────────
+
+    def parse(self):
+        stmts = []
+        while not self.match(TT.EOF):
+            s = self.parse_stmt()
+            if s is not None:
+                stmts.append(s)
+        return Program(stmts)
 
     def parse_stmt(self):
         t = self.peek()
 
-        # def name(): body
-        if t.type == TT.DEF:
-            return self.parse_def()
-
-        # ai.xxx(...)
-        if t.type == TT.AI:
-            return self.parse_ai_stmt()
-
-        # train.embed(...)
-        if t.type == TT.TRAIN:
-            return self.parse_train_stmt()
-
-        # test.ui(...)
-        if t.type == TT.TEST:
-            return self.parse_test_stmt()
-
-        # out.in(...)
-        if t.type == TT.OUT:
-            return self.parse_out_stmt()
-
-        # print(...)
-        if t.type == TT.PRINT:
-            self.advance()
-            self.expect(TT.LPAREN)
-            expr = self.parse_expr()
-            self.expect(TT.RPAREN)
-            return Print(expr)
-
-        # while(yes):
-        if t.type == TT.WHILE:
-            self.advance()
-            self.expect(TT.LPAREN)
-            self.advance()  # condition value
-            self.expect(TT.RPAREN)
-            self.expect(TT.COLON)
-            body = self.parse_indented_block()
-            return WhileLoop(body)
-
-        # custom.module(name)
-        if t.type == TT.CUSTOM:
-            self.advance()
-            self.expect(TT.DOT)
-            directive = self.advance().value
-            if directive == 'module':
-                self.expect(TT.LPAREN)
-                name_tok = self.advance()
-                name = str(name_tok.value)
-                self.expect(TT.RPAREN)
-                return CustomModule(name)
-            raise ParseError(f"Unknown custom directive: {directive!r} at line {t.line}")
-
-        # make.module(name) — create a blank template
-        if t.type == TT.MAKE:
-            self.advance()
-            self.expect(TT.DOT)
-            directive = self.advance().value
-            if directive == 'module':
-                self.expect(TT.LPAREN)
-                name_tok = self.advance()
-                name = str(name_tok.value)
-                self.expect(TT.RPAREN)
-                return MakeModule(name)
-            raise ParseError(f"Unknown make directive: {directive!r} at line {t.line}")
+        if t.type == TT.AI:         return self.parse_ai_stmt()
+        if t.type == TT.TRAIN:      return self.parse_train_stmt()
+        if t.type == TT.TEST:       return self.parse_test_stmt()
+        if t.type == TT.OUT:        return self.parse_out_stmt()
+        if t.type == TT.WHILE:      return self.parse_while_stmt()
+        if t.type == TT.DEF:        return self.parse_def_stmt()
+        if t.type == TT.CUSTOM:     return self.parse_custom_stmt()
+        if t.type == TT.MAKE:       return self.parse_make_stmt()
+        if t.type == TT.ON:         return self.parse_on_stmt()
+        if t.type == TT.VISION_KW:  return self.parse_vision_stmt()
+        if t.type == TT.NOTIFY_KW:  return self.parse_notify_call()
+        if t.type == TT.LOG_KW:     return self.parse_log_call()
+        if t.type == TT.IF:         return self.parse_if_stmt()
+        if t.type == TT.PRINT:      return self.parse_print_stmt()
+        if t.type == TT.INPUT:      return self.parse_input_expr()
 
         # IDENT — assignment or def call
         if t.type == TT.IDENT:
-            next_t = self.tokens[self.pos + 1]
-            # Assignment: name = expr
-            if next_t.type == TT.EQUALS:
-                name = self.advance().value
-                self.advance()  # =
-                expr = self.parse_expr()
-                return Assign(name, expr)
-            # Def call: name()
-            if next_t.type == TT.LPAREN:
-                name = self.advance().value
-                self.expect(TT.LPAREN)
-                self.expect(TT.RPAREN)
-                return CallDef(name)
+            return self.parse_ident_stmt()
 
-        raise ParseError(f"Unexpected token {t.type} ({t.value!r}) at line {t.line}")
+        # skip unknown
+        self.advance()
+        return None
 
-    def parse_def(self):
-        self.expect(TT.DEF)
-        name_tok = self.advance()
-        name = name_tok.value
+    # ─── ai. statements ───────────────────────────────────
+
+    def parse_ai_stmt(self):
+        self.advance()   # consume 'ai'
+        self.eat_dot()
+        name = self.advance()
+        # 'yes' tokenises as BOOL True — map it back to the string 'yes'
+        if name.type == TT.BOOL and name.value == True:
+            directive = 'yes'
+        elif name.type == TT.BOOL and name.value == False:
+            directive = 'no'
+        else:
+            directive = str(name.value)
+
+        # ai.enable()
+        if directive == 'enable':
+            self.expect(TT.LPAREN)
+            self.expect(TT.RPAREN)
+            return AIEnable()
+
+        # ai.model(mode) or ai.model(custom, path)
+        if directive == 'model':
+            self.expect(TT.LPAREN)
+            mode = self.read_value()
+            path = None
+            if self.match(TT.COMMA):
+                self.advance()
+                path = self.read_value()
+            self.expect(TT.RPAREN)
+            return AIModel(mode, path)
+
+        # ai.web(yes/no)  ai.vision(normal/live)  ai.diffusion(yes)
+        # ai.video(yes)   ai.voice(yes)
+        if directive in ('web', 'vision', 'diffusion', 'video', 'voice'):
+            self.expect(TT.LPAREN)
+            val = self.read_value()
+            self.expect(TT.RPAREN)
+            return AICapability(directive, val)
+
+        # ai.persona("text")
+        if directive == 'persona':
+            self.expect(TT.LPAREN)
+            text = self.read_value()
+            self.expect(TT.RPAREN)
+            return AIPersona(text)
+
+        # ai.memory(rule/generative/upload[, url])
+        if directive == 'memory':
+            self.expect(TT.LPAREN)
+            mode = self.read_value()
+            url  = None
+            if self.match(TT.COMMA):
+                self.advance()
+                url = self.read_value_greedy()
+            self.expect(TT.RPAREN)
+            return AIMemory(mode, url)
+
+        # ai.skills(path)
+        if directive == 'skills':
+            self.expect(TT.LPAREN)
+            path = self.read_value()
+            self.expect(TT.RPAREN)
+            return AISkills(path)
+
+        # ai.yes(target)
+        if directive == 'yes':
+            self.expect(TT.LPAREN)
+            target = self.read_value()
+            self.expect(TT.RPAREN)
+            return AIYesNode(target)
+
+        # ai.notify(channel, target)
+        if directive == 'notify':
+            self.expect(TT.LPAREN)
+            channel = self.read_value()
+            self.expect(TT.COMMA)
+            target = self.read_value_greedy()
+            self.expect(TT.RPAREN)
+            return AINotify(channel, target)
+
+        # ai.fallback(message)
+        if directive == 'fallback':
+            self.expect(TT.LPAREN)
+            msg = self.read_value_greedy()
+            self.expect(TT.RPAREN)
+            return AIFallback(msg)
+
+        # ai.log(path)
+        if directive == 'log':
+            self.expect(TT.LPAREN)
+            path = self.read_value()
+            self.expect(TT.RPAREN)
+            return AILog(path)
+
+        # ai.transfer(number)
+        if directive == 'transfer':
+            self.expect(TT.LPAREN)
+            number = self.read_value()
+            self.expect(TT.RPAREN)
+            return TransferCall(number)
+
+        raise ParseError(f"Unknown ai directive: {directive!r} at line {name.line}")
+
+    # ─── train.embed ──────────────────────────────────────
+
+    def parse_train_stmt(self):
+        self.advance()
+        self.eat_dot()
+        directive = self.advance().value
+        if directive == 'embed':
+            self.expect(TT.LPAREN)
+            path = self.read_value()
+            self.expect(TT.RPAREN)
+            return TrainEmbed(path)
+        raise ParseError(f"Unknown train directive: {directive!r}")
+
+    # ─── test.ui ──────────────────────────────────────────
+
+    def parse_test_stmt(self):
+        self.advance()
+        self.eat_dot()
+        directive = self.advance().value
+        if directive == 'ui':
+            self.expect(TT.LPAREN)
+            val = self.read_value()
+            self.expect(TT.RPAREN)
+            return TestUI(val)
+        raise ParseError(f"Unknown test directive: {directive!r}")
+
+    # ─── out.in ───────────────────────────────────────────
+
+    def parse_out_stmt(self):
+        self.advance()
+        self.eat_dot()
+        directive = str(self.advance().value)
+        if directive == 'in':
+            self.expect(TT.LPAREN)
+            key = self.read_value()
+            user = None
+            storage = None
+            upload  = None
+            while self.match(TT.COMMA):
+                self.advance()
+                t = self.advance()
+                if t.type == TT.NAMEDPARAM:
+                    param_name, param_val = t.value
+                else:
+                    param_name = str(t.value)
+                    self.expect(TT.EQUALS)
+                    param_val  = self.read_value_greedy()
+                if param_name == 'user':      user    = param_val
+                elif param_name == 'storage': storage = param_val
+                elif param_name == 'upload':  upload  = param_val
+            self.expect(TT.RPAREN)
+            return OutIn(key, user=user, storage=storage, upload=upload)
+        raise ParseError(f"Unknown out directive: {directive!r}")
+
+    # ─── while ────────────────────────────────────────────
+
+    def parse_while_stmt(self):
+        self.advance()
+        self.expect(TT.LPAREN)
+        cond = self.read_until_rparen()
+        self.expect(TT.COLON)
+        body = self.parse_indented_block()
+        return WhileLoop(cond, body)
+
+    # ─── def ──────────────────────────────────────────────
+
+    def parse_def_stmt(self):
+        self.advance()
+        name = str(self.advance().value)
         self.expect(TT.LPAREN)
         self.expect(TT.RPAREN)
         self.expect(TT.COLON)
         body = self.parse_indented_block()
         return DefBlock(name, body)
 
-    def parse_ai_stmt(self):
-        self.expect(TT.AI)
-        self.expect(TT.DOT)
-        t = self.advance()
+    # ─── custom.module ────────────────────────────────────
 
-        if t.value == 'enable':
+    def parse_custom_stmt(self):
+        self.advance()
+        self.eat_dot()
+        directive = str(self.advance().value)
+        if directive == 'module':
+            self.expect(TT.LPAREN)
+            name = self.read_value()
+            self.expect(TT.RPAREN)
+            return CustomModule(name)
+        raise ParseError(f"Unknown custom directive: {directive!r}")
+
+    # ─── make.module ──────────────────────────────────────
+
+    def parse_make_stmt(self):
+        self.advance()
+        self.eat_dot()
+        directive = str(self.advance().value)
+        if directive == 'module':
+            self.expect(TT.LPAREN)
+            name = self.read_value()
+            self.expect(TT.RPAREN)
+            return MakeModule(name)
+        raise ParseError(f"Unknown make directive: {directive!r}")
+
+    # ─── on.event ─────────────────────────────────────────
+
+    def parse_on_stmt(self):
+        self.advance()
+        self.eat_dot()
+        _ev = self.advance()
+        event = str(_ev.value) if _ev.value is not None else ''  
+        self.expect(TT.LPAREN)
+        param = None
+        if not self.match(TT.RPAREN):
+            param = self.read_value_greedy()
+        self.expect(TT.RPAREN)
+        self.expect(TT.COLON)
+        body = self.parse_indented_block()
+        return OnEvent(event, param, body)
+
+    # ─── vision.train ─────────────────────────────────────
+
+    def parse_vision_stmt(self):
+        self.advance()
+        self.eat_dot()
+        directive = str(self.advance().value or '')
+        if directive == 'train':
+            self.expect(TT.LPAREN)
+            label = self.read_value()
+            self.expect(TT.COMMA)
+            path  = self.read_value()
+            self.expect(TT.RPAREN)
+            return VisionTrain(label, path)
+        raise ParseError(f"Unknown vision directive: {directive!r}")
+
+    # ─── notify.channel ───────────────────────────────────
+
+    def parse_notify_call(self):
+        self.advance()
+        self.eat_dot()
+        channel = str(self.advance().value)
+        self.expect(TT.LPAREN)
+        message = self.read_value_greedy()
+        attachment = None
+        if self.match(TT.COMMA):
+            self.advance()
+            attachment = self.read_value()
+        self.expect(TT.RPAREN)
+        return NotifyCall(channel, message, attachment)
+
+    # ─── log() ────────────────────────────────────────────
+
+    def parse_log_call(self):
+        self.advance()
+        self.expect(TT.LPAREN)
+        val = self.read_value()
+        self.expect(TT.RPAREN)
+        return LogCall(val)
+
+    # ─── if / else ────────────────────────────────────────
+
+    def parse_if_stmt(self):
+        self.advance()
+        self.expect(TT.LPAREN)
+        condition = self.read_until_rparen()
+        self.expect(TT.COLON)
+        body = self.parse_indented_block()
+        else_body = []
+        if self.match(TT.ELSE):
+            self.advance()
             self.expect(TT.LPAREN)
             self.expect(TT.RPAREN)
-            return AIEnable()
+            self.expect(TT.COLON)
+            else_body = self.parse_indented_block()
+        return IfStmt(condition, body, else_body)
 
-        if t.value == 'model':
-            self.expect(TT.LPAREN)
-            name_tok = self.advance()
-            name = name_tok.value
-            path = None
-            if self.peek().type == TT.COMMA:
-                self.advance()
-                path_tok = self.advance()
-                path = path_tok.value
+    # ─── print ────────────────────────────────────────────
+
+    def parse_print_stmt(self):
+        self.advance()
+        self.expect(TT.LPAREN)
+        val = self.read_value_greedy()
+        self.expect(TT.RPAREN)
+        return PrintStmt(val)
+
+    # ─── input() ──────────────────────────────────────────
+
+    def parse_input_expr(self):
+        self.advance()
+        self.expect(TT.LPAREN)
+        self.expect(TT.RPAREN)
+        return InputExpr()
+
+    # ─── IDENT — assignment or def call ───────────────────
+
+    def parse_ident_stmt(self):
+        name_tok = self.advance()
+        name = str(name_tok.value)
+
+        # Assignment: Name = expr
+        if self.match(TT.EQUALS):
+            self.advance()
+            expr = self.parse_expr()
+            return Assign(name, expr)
+
+        # Def call: myFunc()
+        if self.match(TT.LPAREN):
+            self.advance()
             self.expect(TT.RPAREN)
-            return AIModel(name, path)
+            return CallDef(name)
 
-        if t.value == 'persona':
-            self.expect(TT.LPAREN)
-            text_tok = self.advance()
-            text = text_tok.value
-            self.expect(TT.RPAREN)
-            return AIPersona(text)
+        return None
 
-        if t.value == 'skills':
-            self.expect(TT.LPAREN)
-            path_tok = self.advance()
-            path = path_tok.value
-            self.expect(TT.RPAREN)
-            return AISkills(path)
-
-        if t.value in ('web', 'memory', 'vision', 'diffusion', 'video', 'voice'):
-            cap = t.value
-            self.expect(TT.LPAREN)
-            val_tok = self.advance()
-            value = val_tok.value
-            self.expect(TT.RPAREN)
-            return AICapability(cap, value)
-
-        raise ParseError(f"Unknown ai directive: {t.value!r} at line {t.line}")
-
-    def parse_train_stmt(self):
-        self.expect(TT.TRAIN)
-        self.expect(TT.DOT)
-        t = self.advance()
-        if t.value == 'embed':
-            self.expect(TT.LPAREN)
-            path_tok = self.advance()
-            path = path_tok.value
-            self.expect(TT.RPAREN)
-            return TrainEmbed(path)
-        raise ParseError(f"Unknown train directive: {t.value!r} at line {t.line}")
-
-    def parse_test_stmt(self):
-        self.expect(TT.TEST)
-        self.expect(TT.DOT)
-        t = self.advance()
-        if t.value == 'ui':
-            self.expect(TT.LPAREN)
-            val_tok = self.advance()
-            value = val_tok.value
-            self.expect(TT.RPAREN)
-            return TestUI(value)
-        raise ParseError(f"Unknown test directive: {t.value!r} at line {t.line}")
-
-    def parse_out_stmt(self):
-        self.expect(TT.OUT)
-        self.expect(TT.DOT)
-        t = self.advance()
-        if t.value == 'in' or t.type == TT.IN:
-            self.expect(TT.LPAREN)
-            key_tok = self.advance()
-            key = key_tok.value
-            user = None
-            storage = None
-            upload = None
-            # Parse named params: user=auto, storage=./path, upload=https://...
-            while self.peek().type == TT.COMMA:
-                self.advance()  # ,
-                param_name = self.advance().value  # param name
-                self.advance()  # =
-                # Value can be string, ident, bool, path, or number
-                val_tok = self.advance()
-                param_val = val_tok.value
-                # For upload= URLs: consume extra tokens until comma/rparen
-                # since https://... gets split at : by the lexer
-                if param_name == 'upload':
-                    # Re-read raw — peek and accumulate until ) or ,
-                    parts = [str(param_val)]
-                    while self.peek().type not in (TT.RPAREN, TT.COMMA, TT.EOF, TT.NEWLINE):
-                        parts.append(str(self.advance().value))
-                    param_val = ''.join(parts)
-                if param_name == 'user':
-                    user = str(param_val)
-                elif param_name == 'storage':
-                    storage = str(param_val)
-                elif param_name == 'upload':
-                    upload = param_val
-            self.expect(TT.RPAREN)
-            return OutIn(key, user=user, storage=storage, upload=upload)
-        raise ParseError(f"Unknown out directive: {t.value!r} at line {t.line}")
+    # ─── expressions ──────────────────────────────────────
 
     def parse_expr(self):
         t = self.peek()
 
         if t.type == TT.INPUT:
-            self.advance()
-            self.expect(TT.LPAREN)
-            self.expect(TT.RPAREN)
-            return InputExpr()
+            return self.parse_input_expr()
 
         if t.type == TT.EMBED:
             self.advance()
@@ -315,20 +478,6 @@ class Parser:
             self.expect(TT.RPAREN)
             return RespondExpr(inner)
 
-        if t.type == TT.STRING:
-            self.advance()
-            return StringLit(t.value)
-
-        if t.type == TT.NUMBER:
-            self.advance()
-            return NumberLit(t.value)
-
-        if t.type == TT.PATH:
-            self.advance()
-            return PathLit(t.value)
-
-        if t.type == TT.IDENT:
-            self.advance()
-            return VarRef(t.value)
-
-        raise ParseError(f"Unexpected token in expression: {t.type} ({t.value!r}) at line {t.line}")
+        # Bare value — variable name or literal
+        tok = self.advance()
+        return Literal(tok.value)
