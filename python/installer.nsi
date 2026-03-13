@@ -1,10 +1,8 @@
 ; ai.play Windows Installer
 ; Nullsoft Scriptable Install System (NSIS)
-; Installs the ai.play runtime + registers .aip file association
-; Adds `aip` command to PATH
 
 !define APPNAME "ai.play"
-!define VERSION "0.1"
+!define VERSION "0.6"
 !define PUBLISHER "sintaxsaint"
 !define INSTALL_DIR "$PROGRAMFILES64\aiplay"
 !define UNINSTALL_REG "Software\Microsoft\Windows\CurrentVersion\Uninstall\aiplay"
@@ -32,13 +30,23 @@ UninstPage instfiles
 Section "ai.play Runtime" SecMain
     SectionIn RO
 
+    ; ── Auto-uninstall old version if present ──
+    ReadRegStr $0 HKLM "${UNINSTALL_REG}" "UninstallString"
+    StrCmp $0 "" skip_uninstall
+        ExecWait '"$0" /S'
+    skip_uninstall:
+
+    ; ── Copy runtime files ──────────────────
     SetOutPath "$INSTDIR"
-
-    ; Copy all runtime files
     File "dist\aip\aip.exe"
-    File "dist\aip\_internal\*.*"
+    File "aip.ico"
 
-    ; Copy the Python source files (for live compilation)
+    ; Copy _internal recursively (gets all DLLs and subfolders)
+    SetOutPath "$INSTDIR\_internal"
+    File /r "dist\aip\_internal\*"
+
+    ; ── Copy Python source files ────────────
+    SetOutPath "$INSTDIR"
     File "aiplay.py"
     File "lexer.py"
     File "parser.py"
@@ -47,51 +55,52 @@ Section "ai.play Runtime" SecMain
     File "runtime.py"
     File "format_detector.py"
     File "memory_engine.py"
+    File "skills_engine.py"
+    File "module_engine.py"
+    File "user_memory.py"
     File "server.py"
     File "ui_server.py"
+    File "intent_engine.py"
     File "voice_engine.py"
     File "video_engine.py"
-    File "skills_engine.py"
-    File "user_memory.py"
-    File "aip.ico"
+    File "notify_engine.py"
+    File "vision_trainer.py"
+    File "ai_yes.py"
+    File "call_handler.py"
 
-    ; Write install dir to registry
+    ; ── Create modules directory ────────────
+    CreateDirectory "$INSTDIR\modules"
+
+    ; ── Registry ────────────────────────────
     WriteRegStr HKLM "Software\aiplay" "InstallDir" "$INSTDIR"
 
     ; ── Add to system PATH ──────────────────
     ReadRegStr $0 HKLM "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "Path"
-    StrCpy $1 "$0;$INSTDIR"
-    WriteRegExpandStr HKLM "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "Path" "$1"
-    SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=500
+    ; Only add if not already in PATH
+    StrCpy $1 $0
+    Push $1
+    Push "$INSTDIR"
+    Call StrContains
+    Pop $2
+    StrCmp $2 "" 0 skip_path
+        StrCpy $1 "$0;$INSTDIR"
+        WriteRegExpandStr HKLM "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "Path" "$1"
+        SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=500
+    skip_path:
 
     ; ── .aip file association ───────────────
-    ; Register .aip extension
     WriteRegStr HKCR ".aip" "" "aiplay.file"
     WriteRegStr HKCR ".aip" "Content Type" "text/x-aiplay"
-
-    ; Register file type
     WriteRegStr HKCR "aiplay.file" "" "ai.play Source File"
     WriteRegStr HKCR "aiplay.file\DefaultIcon" "" "$INSTDIR\aip.ico"
-
-    ; Double-click: open terminal and run
     WriteRegStr HKCR "aiplay.file\shell\open" "" "Run with ai.play"
-    WriteRegStr HKCR "aiplay.file\shell\open\command" "" \
-        '"cmd.exe" /k "$INSTDIR\aip.exe" "%1"'
-
-    ; Right-click: Run with ai.play
+    WriteRegStr HKCR "aiplay.file\shell\open\command" "" '"cmd.exe" /k "$INSTDIR\aip.exe" "%1"'
     WriteRegStr HKCR "aiplay.file\shell\run" "" "Run with ai.play"
-    WriteRegStr HKCR "aiplay.file\shell\run\command" "" \
-        '"cmd.exe" /k "$INSTDIR\aip.exe" "%1"'
-
-    ; Right-click: Syntax Check
+    WriteRegStr HKCR "aiplay.file\shell\run\command" "" '"cmd.exe" /k "$INSTDIR\aip.exe" "%1"'
     WriteRegStr HKCR "aiplay.file\shell\check" "" "Syntax Check"
-    WriteRegStr HKCR "aiplay.file\shell\check\command" "" \
-        '"cmd.exe" /k "$INSTDIR\aip.exe" check "%1"'
-
-    ; Right-click: Edit (opens in Notepad by default, VS Code if installed)
+    WriteRegStr HKCR "aiplay.file\shell\check\command" "" '"cmd.exe" /k "$INSTDIR\aip.exe" check "%1"'
     WriteRegStr HKCR "aiplay.file\shell\edit" "" "Edit"
-    WriteRegStr HKCR "aiplay.file\shell\edit\command" "" \
-        '"notepad.exe" "%1"'
+    WriteRegStr HKCR "aiplay.file\shell\edit\command" "" '"notepad.exe" "%1"'
 
     ; ── Uninstaller ──────────────────────────
     WriteUninstaller "$INSTDIR\uninstall.exe"
@@ -103,7 +112,6 @@ Section "ai.play Runtime" SecMain
     WriteRegDWORD HKLM "${UNINSTALL_REG}" "NoModify" 1
     WriteRegDWORD HKLM "${UNINSTALL_REG}" "NoRepair" 1
 
-    ; ── Notify shell of file association change ─
     System::Call 'shell32.dll::SHChangeNotify(i, i, i, i) v (0x8000000, 0, 0, 0)'
 
 SectionEnd
@@ -114,7 +122,6 @@ SectionEnd
 Section "Uninstall"
     ; Remove from PATH
     ReadRegStr $0 HKLM "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "Path"
-    ; Simple removal — replace ;$INSTDIR with nothing
     Push "$0"
     Push ";$INSTDIR"
     Push ""
@@ -130,20 +137,49 @@ Section "Uninstall"
     ; Remove install dir
     RMDir /r "$INSTDIR"
 
-    ; Remove uninstall registry entry
+    ; Remove registry
     DeleteRegKey HKLM "${UNINSTALL_REG}"
     DeleteRegKey HKLM "Software\aiplay"
 
     System::Call 'shell32.dll::SHChangeNotify(i, i, i, i) v (0x8000000, 0, 0, 0)'
 SectionEnd
 
-; ── String replace helper for uninstaller ──
-Function un.StrReplace
-    Exch $R2 ; replace with
+; ─────────────────────────────────────────
+; HELPERS
+; ─────────────────────────────────────────
+Function StrContains
+    Exch $R1 ; string to find
     Exch
-    Exch $R1 ; find
+    Exch $R0 ; string to search
+    Push $R2
+    Push $R3
+    StrLen $R2 $R1
+    StrCpy $R3 0
+    loop:
+        StrCpy $R4 $R0 $R2 $R3
+        StrCmp $R4 "" done_notfound
+        StrCmp $R4 $R1 done_found
+        IntOp $R3 $R3 + 1
+        Goto loop
+    done_found:
+        StrCpy $R0 $R1
+        Goto done
+    done_notfound:
+        StrCpy $R0 ""
+    done:
+    Pop $R3
+    Pop $R2
+    Exch $R0
+    Exch
+    Pop $R1
+FunctionEnd
+
+Function un.StrReplace
+    Exch $R2
+    Exch
+    Exch $R1
     Exch 2
-    Exch $R0 ; source
+    Exch $R0
     Push $R3
     Push $R4
     Push $R5
