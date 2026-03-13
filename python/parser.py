@@ -41,6 +41,8 @@ class Parser:
     def read_value(self):
         """Read one value token — string, number, bool, path, ident — as a string."""
         t = self.advance()
+        if t.type == TT.BOOL:
+            return 'yes' if t.value else 'no'
         return str(t.value) if t.value is not None else ''
 
     def read_until_rparen(self):
