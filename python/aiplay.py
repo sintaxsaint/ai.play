@@ -34,6 +34,14 @@ def _load(name):
     spec.loader.exec_module(mod)
     return mod
 
+# Purge any frozen/cached versions before loading from disk
+_MODULES = ['ast_nodes','lexer','parser','runtime','format_detector',
+            'memory_engine','skills_engine','module_engine','user_memory',
+            'intent_engine','voice_engine','video_engine','server','ui_server',
+            'notify_engine','vision_trainer','ai_yes','call_handler','interpreter']
+for _m in _MODULES:
+    sys.modules.pop(_m, None)
+
 # Load all modules from disk
 _load('ast_nodes')
 _load('lexer')
@@ -54,6 +62,22 @@ _load('ai_yes')
 _load('call_handler')
 _load('interpreter')
 _load('parser')
+
+# Force interpreter and parser to use the disk-loaded ast_nodes,
+# not any cached version Python may have from the frozen bundle
+import ast_nodes as _an
+import interpreter as _interp
+import importlib, sys
+
+# Patch the interpreter module's reference to ast_nodes
+_interp_mod = sys.modules.get('interpreter')
+if _interp_mod:
+    _an_mod = sys.modules.get('ast_nodes')
+    if _an_mod:
+        # Copy all names from disk-loaded ast_nodes into interpreter's namespace
+        for _name in dir(_an_mod):
+            if not _name.startswith('__'):
+                setattr(_interp_mod, _name, getattr(_an_mod, _name))
 
 from lexer       import LexError
 from parser      import ParseError

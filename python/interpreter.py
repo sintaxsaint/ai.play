@@ -79,6 +79,10 @@ class Interpreter:
     # ENTRY
     # ──────────────────────────────────────
 
+    def _is(self, node, *names):
+        """Match node by class name — works across module boundaries."""
+        return type(node).__name__ in names
+
     def run(self, program):
         for stmt in program.stmts:
             self.exec_stmt(stmt)
@@ -89,12 +93,12 @@ class Interpreter:
 
     def exec_stmt(self, node):
 
-        if isinstance(node, AIEnable):
+        if self._is(node, 'AIEnable'):
             self.enabled = True
             print("[ai.play] Runtime enabled.")
             return
 
-        if isinstance(node, AIModel):
+        if self._is(node, 'AIModel'):
             self._require_enabled(node)
             if node.name == 'custom':
                 if not node.path:
@@ -110,13 +114,13 @@ class Interpreter:
                 print(f"[ai.play] Model: {node.name}")
             return
 
-        if isinstance(node, AIPersona):
+        if self._is(node, 'AIPersona'):
             self._require_enabled(node)
             self.persona = node.text
             print(f"[ai.play] Persona set.")
             return
 
-        if isinstance(node, AICapability):
+        if self._is(node, 'AICapability'):
             self._require_enabled(node)
             cap, value = node.cap, node.value
 
@@ -167,7 +171,7 @@ class Interpreter:
             self.caps[cap] = value
             return
 
-        if isinstance(node, TrainEmbed):
+        if self._is(node, 'TrainEmbed'):
             self._require_enabled(node)
             print(f"[ai.play] Loading training data from {node.path}...")
             pairs, fmt = load_any(node.path)
@@ -192,22 +196,43 @@ class Interpreter:
             print(f"[ai.play] Embedded {len(pairs)} training pairs.")
             return
 
-        if isinstance(node, AISkills):
+        if self._is(node, 'AIMemory'):
+            self._require_enabled(node)
+            mode = node.mode
+            if mode in ('rule', 'yes'):
+                self.memory_mode = 'rule'
+                self.memory = make_memory('rule')
+                self.caps['memory'] = True
+                print(f"[ai.play] Memory: rule-based")
+            elif mode == 'generative':
+                self.memory_mode = 'generative'
+                self.memory = make_memory('generative')
+                self.caps['memory'] = True
+                print(f"[ai.play] Memory: generative (sintaxsaint architecture)")
+            elif mode == 'upload':
+                self.memory_mode = 'upload'
+                self.memory = make_memory('generative')
+                self.caps['memory'] = True
+                print(f"[ai.play] Memory: upload mode")
+            return
+
+        if self._is(node, 'AISkills'):
             self._require_enabled(node)
             from skills_engine import SkillsEngine
             self.skills_engine = SkillsEngine(node.path)
             self.skills_engine.embed_all(self.embedder)
             return
 
-        if isinstance(node, TestUI):
+        if self._is(node, 'TestUI'):
             self._require_enabled(node)
-            if node.value:
+            val = getattr(node, 'value', None) or getattr(node, 'val', None)
+            if val and val not in (False, 'no', 'No'):
                 from ui_server import UIServer
                 self.ui_server = UIServer()
                 self.ui_server.start()
             return
 
-        if isinstance(node, OutIn):
+        if self._is(node, 'OutIn'):
             self._require_enabled(node)
             from server import AIPServer
             self.aip_server = AIPServer(
@@ -220,11 +245,11 @@ class Interpreter:
             self.aip_server.start()
             return
 
-        if isinstance(node, Assign):
+        if self._is(node, 'Assign'):
             self.env[node.name] = self.eval_expr(node.expr)
             return
 
-        if isinstance(node, Print):
+        if self._is(node, 'Print'):
             # PrintStmt stores val as string, old Print stores expr as node
             if hasattr(node, 'expr'):
                 val = self.eval_expr(node.expr)
@@ -259,7 +284,7 @@ class Interpreter:
                 self.aip_server.send_output(output)
             return
 
-        if isinstance(node, WhileLoop):
+        if self._is(node, 'WhileLoop'):
             while True:
                 try:
                     for stmt in node.body:
@@ -270,7 +295,7 @@ class Interpreter:
             return
 
         # ─── ai.yes ───────────────────────────────────
-        if isinstance(node, AIYesNode):
+        if self._is(node, 'AIYesNode'):
             self._require_enabled(node)
             from ai_yes import AIYes
             self.ai_yes = AIYes()
@@ -291,7 +316,7 @@ class Interpreter:
             return
 
         # ─── ai.notify ────────────────────────────────────
-        if isinstance(node, AINotify):
+        if self._is(node, 'AINotify'):
             self._require_enabled(node)
             from notify_engine import NotifyEngine
             if self.notify_engine is None:
@@ -300,13 +325,13 @@ class Interpreter:
             return
 
         # ─── ai.fallback ──────────────────────────────────
-        if isinstance(node, AIFallback):
+        if self._is(node, 'AIFallback'):
             self._require_enabled(node)
             self.fallback_msg = node.message
             return
 
         # ─── ai.log ───────────────────────────────────────
-        if isinstance(node, AILog):
+        if self._is(node, 'AILog'):
             self._require_enabled(node)
             self.log_path = node.path
             import builtins
@@ -315,7 +340,7 @@ class Interpreter:
             return
 
         # ─── vision.train ─────────────────────────────────
-        if isinstance(node, VisionTrain):
+        if self._is(node, 'VisionTrain'):
             self._require_enabled(node)
             from vision_trainer import VisionTrainer
             if self.vision_trainer is None:
@@ -324,7 +349,7 @@ class Interpreter:
             return
 
         # ─── on.event ─────────────────────────────────────
-        if isinstance(node, OnEvent):
+        if self._is(node, 'OnEvent'):
             self._require_enabled(node)
             body = node.body
 
@@ -369,7 +394,7 @@ class Interpreter:
             return
 
         # ─── notify.channel ───────────────────────────────
-        if isinstance(node, NotifyCall):
+        if self._is(node, 'NotifyCall'):
             if self.notify_engine:
                 self.notify_engine.send(node.channel, node.message, node.attachment)
             else:
@@ -377,7 +402,7 @@ class Interpreter:
             return
 
         # ─── log() ────────────────────────────────────────
-        if isinstance(node, LogCall):
+        if self._is(node, 'LogCall'):
             val = self.variables.get(node.value, node.value)
             msg = str(val)
             if self.log_file:
@@ -389,7 +414,7 @@ class Interpreter:
             return
 
         # ─── if / else ────────────────────────────────────
-        if isinstance(node, IfStmt):
+        if self._is(node, 'IfStmt'):
             if self._eval_condition(node.condition):
                 for s in node.body:
                     self.exec_stmt(s)
@@ -399,12 +424,12 @@ class Interpreter:
             return
 
         # ─── ai.transfer ──────────────────────────────────
-        if isinstance(node, TransferCall):
+        if self._is(node, 'TransferCall'):
             if self.call_handler:
                 self.call_handler.transfer(node.number)
             return
 
-        if isinstance(node, CustomModule):
+        if self._is(node, 'CustomModule'):
             self._require_enabled(node)
             from module_engine import ModuleEngine
             if self.module_engine is None:
@@ -414,16 +439,16 @@ class Interpreter:
                 self.module_engine.embed_all(self.embedder)
             return
 
-        if isinstance(node, MakeModule):
+        if self._is(node, 'MakeModule'):
             from module_engine import create_module_template
             create_module_template(node.name)
             return
 
-        if isinstance(node, DefBlock):
+        if self._is(node, 'DefBlock'):
             self.defs[node.name] = node.body
             return
 
-        if isinstance(node, CallDef):
+        if self._is(node, 'CallDef'):
             if node.name not in self.defs:
                 raise RuntimeError(f"Undefined def: {node.name!r}. Define it with def {node.name}(): ...")
             for stmt in self.defs[node.name]:
@@ -438,7 +463,7 @@ class Interpreter:
 
     def eval_expr(self, node):
 
-        if isinstance(node, InputExpr):
+        if self._is(node, 'InputExpr'):
             # If server is running, get input from there
             if self.aip_server:
                 text = self.aip_server.get_input()
@@ -471,14 +496,14 @@ class Interpreter:
 
             return text
 
-        if isinstance(node, TokenizeExpr):
+        if self._is(node, 'TokenizeExpr'):
             val = self.eval_expr(node.expr)
             # Vision: if val looks like an image path, convert pixels to tokens
             if self.caps['vision'] and isinstance(val, str) and self._is_image_path(val):
                 return self._vision_tokenize(val)
             return tokenize(str(val))
 
-        if isinstance(node, EmbedExpr):
+        if self._is(node, 'EmbedExpr'):
             inner = self.eval_expr(node.expr)
             # Pass through context bundles from Similaritize
             if isinstance(inner, list) and len(inner) > 0 and isinstance(inner[0], tuple):
@@ -489,7 +514,7 @@ class Interpreter:
                 return inner
             return self.embedder.embed_raw(str(inner))
 
-        if isinstance(node, SimilarizeExpr):
+        if self._is(node, 'SimilarizeExpr'):
             inner = self.eval_expr(node.expr)
 
             # Embed if needed
@@ -559,7 +584,7 @@ class Interpreter:
             top_k = int(self.model_config.get('top_k', 5)) if self.model_type == 'custom' else 5
             return similaritize(query_vec, store, top_k=top_k)
 
-        if isinstance(node, RespondExpr):
+        if self._is(node, 'RespondExpr'):
             context = self.eval_expr(node.expr)
 
             # ── Intent analysis ───────────────────────────────────────
@@ -602,7 +627,7 @@ class Interpreter:
 
             return '\n'.join(outputs)
 
-        if isinstance(node, VarRef):
+        if self._is(node, 'VarRef'):
             if node.name not in self.env:
                 raise RuntimeError(f"Undefined variable: {node.name!r}")
             val = self.env[node.name]
@@ -610,16 +635,16 @@ class Interpreter:
                 self._last_raw_query = val
             return val
 
-        if isinstance(node, StringLit):
+        if self._is(node, 'StringLit'):
             return node.value
 
-        if isinstance(node, NumberLit):
+        if self._is(node, 'NumberLit'):
             return node.value
 
-        if isinstance(node, PathLit):
+        if self._is(node, 'PathLit'):
             return node.value
 
-        if isinstance(node, Literal):
+        if self._is(node, 'Literal'):
             # If the value is a string that matches a variable, return the variable
             if isinstance(node.value, str) and node.value in self.env:
                 val = self.env[node.value]
