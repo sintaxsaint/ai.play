@@ -249,7 +249,7 @@ class Interpreter:
             self.env[node.name] = self.eval_expr(node.expr)
             return
 
-        if self._is(node, 'Print'):
+        if self._is(node, 'Print', 'PrintStmt'):
             # PrintStmt stores val as string, old Print stores expr as node
             if hasattr(node, 'expr'):
                 val = self.eval_expr(node.expr)
@@ -497,14 +497,14 @@ class Interpreter:
             return text
 
         if self._is(node, 'TokenizeExpr'):
-            val = self.eval_expr(node.expr)
+            val = self.eval_expr(node.inner)
             # Vision: if val looks like an image path, convert pixels to tokens
             if self.caps['vision'] and isinstance(val, str) and self._is_image_path(val):
                 return self._vision_tokenize(val)
             return tokenize(str(val))
 
         if self._is(node, 'EmbedExpr'):
-            inner = self.eval_expr(node.expr)
+            inner = self.eval_expr(node.inner)
             # Pass through context bundles from Similaritize
             if isinstance(inner, list) and len(inner) > 0 and isinstance(inner[0], tuple):
                 return inner
@@ -515,7 +515,7 @@ class Interpreter:
             return self.embedder.embed_raw(str(inner))
 
         if self._is(node, 'SimilarizeExpr'):
-            inner = self.eval_expr(node.expr)
+            inner = self.eval_expr(node.inner)
 
             # Embed if needed
             if isinstance(inner, list) and (not inner or not isinstance(inner[0], tuple)):
@@ -585,7 +585,7 @@ class Interpreter:
             return similaritize(query_vec, store, top_k=top_k)
 
         if self._is(node, 'RespondExpr'):
-            context = self.eval_expr(node.expr)
+            context = self.eval_expr(node.inner)
 
             # ── Intent analysis ───────────────────────────────────────
             from intent_engine import analyse
