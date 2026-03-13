@@ -225,7 +225,13 @@ class Interpreter:
             return
 
         if isinstance(node, Print):
-            val = self.eval_expr(node.expr)
+            # PrintStmt stores val as string, old Print stores expr as node
+            if hasattr(node, 'expr'):
+                val = self.eval_expr(node.expr)
+            else:
+                raw = node.val
+                # Look up variable if it exists
+                val = self.env.get(raw, raw)
             output = str(val)
 
             # Memory: store AI output
@@ -611,6 +617,15 @@ class Interpreter:
             return node.value
 
         if isinstance(node, PathLit):
+            return node.value
+
+        if isinstance(node, Literal):
+            # If the value is a string that matches a variable, return the variable
+            if isinstance(node.value, str) and node.value in self.env:
+                val = self.env[node.value]
+                if isinstance(val, str):
+                    self._last_raw_query = val
+                return val
             return node.value
 
         raise RuntimeError(f"Unknown expression: {type(node).__name__}")

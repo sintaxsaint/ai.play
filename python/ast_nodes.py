@@ -254,3 +254,20 @@ class Literal(Node):
 
 class Program(Node):
     def __init__(self, stmts): self.stmts = stmts
+
+# ── compatibility aliases ─────────────────────────────────────────────────────
+# The interpreter uses these old names — keep them pointing at the new classes
+
+Print     = PrintStmt
+
+class VarRef(Node):
+    def __init__(self, name): self.name = name
+
+class StringLit(Node):
+    def __init__(self, value): self.value = value
+
+class NumberLit(Node):
+    def __init__(self, value): self.value = value
+
+class PathLit(Node):
+    def __init__(self, value): self.value = value
