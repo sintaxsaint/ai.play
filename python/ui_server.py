@@ -215,7 +215,18 @@ HTML = """<!DOCTYPE html>
     avatar.textContent = role === 'user' ? 'You' : 'AI';
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
-    bubble.textContent = text;
+    const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const codeStarters = ['for ', 'def ', 'class ', 'import ', 'while ', 'count =', 'name =', 'with open'];
+    const hasNewlines = text.split('\n').length > 1;
+    const looksLikeCode = codeStarters.some(function(k){ return escaped.trimLeft().indexOf(k) === 0; });
+    if (looksLikeCode || hasNewlines) {
+      const pre = document.createElement('pre');
+      pre.style.cssText = 'margin:0;white-space:pre-wrap;font-family:monospace;font-size:13px;line-height:1.5;';
+      pre.textContent = text;
+      bubble.appendChild(pre);
+    } else {
+      bubble.textContent = text;
+    }
     div.appendChild(avatar);
     div.appendChild(bubble);
     msgs.appendChild(div);
@@ -259,9 +270,13 @@ HTML = """<!DOCTYPE html>
     input.focus();
   }
 
-  sendBtn.addEventListener('click', send);
+  sendBtn.addEventListener('click', () => send());
   input.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      send();
+    }
   });
   input.addEventListener('input', () => {
     input.style.height = 'auto';

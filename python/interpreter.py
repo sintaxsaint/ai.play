@@ -64,6 +64,9 @@ class Interpreter:
         self.call_handler   = None
         self.ai_yes         = None
         self.fallback_msg   = None
+        self.ai_name        = None
+        self.ai_version     = None
+        self.ai_creator     = None
         self.log_path       = None
         self.log_file       = None
         self.variables      = {}     # persistent variables across turns
@@ -325,6 +328,53 @@ class Interpreter:
             return
 
         # ─── ai.fallback ──────────────────────────────────
+        if self._is(node, 'AITrain'):
+            self._require_enabled(node)
+            url = node.url
+            print(f"[ai.play] Downloading training data from {url}...")
+            try:
+                import urllib.request, tempfile, os
+                suffix = os.path.splitext(url.split('?')[0])[-1] or '.data'
+                tmp = tempfile.mktemp(suffix=suffix)
+                urllib.request.urlretrieve(url, tmp)
+                from format_detector import load_any
+                pairs, fmt = load_any(tmp)
+                os.remove(tmp)
+                if pairs:
+                    docs = [tokenize(p['question'] + ' ' + p['answer']) for p in pairs]
+                    self.embedder.fit(docs)
+                    for p in pairs:
+                        vec = self.embedder.embed_raw(p['question'] + ' ' + p['answer'])
+                        self.train_store.append({'question': p['question'], 'answer': p['answer'], 'vec': vec})
+                    self.fitted = True
+                    print(f"[ai.play] Downloaded and embedded {len(pairs)} pairs ({fmt})")
+                else:
+                    print(f"[ai.play] Warning: no training pairs found in downloaded file")
+            except Exception as e:
+                print(f"[ai.play] Train download failed: {e}")
+            return
+
+        if self._is(node, 'AIName'):
+            self._require_enabled(node)
+            self.ai_name = node.name
+            self._inject_identity_pairs()
+            print(f"[ai.play] Name: {node.name}")
+            return
+
+        if self._is(node, 'AIVersion'):
+            self._require_enabled(node)
+            self.ai_version = node.version
+            self._inject_identity_pairs()
+            print(f"[ai.play] Version: {node.version}")
+            return
+
+        if self._is(node, 'AICreator'):
+            self._require_enabled(node)
+            self.ai_creator = node.creator
+            self._inject_identity_pairs()
+            print(f"[ai.play] Creator: {node.creator}")
+            return
+
         if self._is(node, 'AIFallback'):
             self._require_enabled(node)
             self.fallback_msg = node.message
@@ -806,6 +856,36 @@ class Interpreter:
     # ──────────────────────────────────────
     # HELPERS
     # ──────────────────────────────────────
+
+    def _inject_identity_pairs(self):
+        """Inject identity knowledge into train_store so the AI knows who it is."""
+        name    = self.ai_name    or 'an AI assistant'
+        version = self.ai_version or '1.0'
+        creator = self.ai_creator or 'an independent developer'
+
+        pairs = [
+            (f"what is your name",           f"My name is {name}."),
+            (f"who are you",                  f"I am {name}, an AI assistant."),
+            (f"what are you called",          f"I am called {name}."),
+            (f"what version are you",         f"I am version {version}."),
+            (f"who made you",                 f"I was created by {creator}."),
+            (f"who created you",              f"I was created by {creator}."),
+            (f"who built you",                f"I was built by {creator}."),
+            (f"what type of ai are you",      f"I am {name}, a local AI assistant built by {creator}. I run entirely on your device."),
+            (f"are you chatgpt",              f"No, I am {name}. I run locally on your device, not in the cloud."),
+            (f"are you an ai",                f"Yes, I am {name}, an AI assistant created by {creator}."),
+            (f"tell me about yourself",       f"I am {name} version {version}, created by {creator}. I run entirely on your device with no data leaving your machine."),
+        ]
+
+        for q, a in pairs:
+            if not self.embedder.vocabulary_:
+                # Embedder not fitted yet — store raw for later
+                self.train_store.append({'question': q, 'answer': a, 'vec': {}})
+            else:
+                vec = self.embedder.embed_raw(q + ' ' + a)
+                # Remove any existing identity pair with same question
+                self.train_store = [p for p in self.train_store if p['question'] != q]
+                self.train_store.append({'question': q, 'answer': a, 'vec': vec})
 
     def _eval_condition(self, condition):
         """Evaluate a simple condition string."""

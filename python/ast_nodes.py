@@ -255,6 +255,22 @@ class Literal(Node):
 class Program(Node):
     def __init__(self, stmts): self.stmts = stmts
 
+class AIName(Node):
+    """ai.name(text)"""
+    def __init__(self, name): self.name = name
+
+class AIVersion(Node):
+    """ai.version(text)"""
+    def __init__(self, version): self.version = version
+
+class AICreator(Node):
+    """ai.creator(text)"""
+    def __init__(self, creator): self.creator = creator
+
+class AITrain(Node):
+    """ai.train(url) — download and embed training data from URL"""
+    def __init__(self, url): self.url = url
+
 # ── compatibility aliases ─────────────────────────────────────────────────────
 # The interpreter uses these old names — keep them pointing at the new classes
 

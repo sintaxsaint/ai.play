@@ -151,8 +151,9 @@ def respond(context_bundle, model_type='factual', persona='', history=None,
         # Remove echoed conversation history (User: ... AI: ... patterns)
         text = re.sub(r'(User:\s*[^\n]+\n?)+', '', text)
         text = re.sub(r'(AI:\s*[^\n]+\n?)+', '', text)
-        # Collapse whitespace
-        text = ' '.join(text.split())
+        # Collapse excessive whitespace but preserve newlines
+        lines = [line.strip() for line in text.splitlines()]
+        text = '\n'.join(line for line in lines if line)
         return text.strip()
 
     # Filter context to only actual knowledge pairs, not memory echoes
@@ -172,15 +173,17 @@ def respond(context_bundle, model_type='factual', persona='', history=None,
     elif model_type == 'fun':
         answer = f"{best_answer} — pretty interesting!"
     elif model_type == 'thinking':
-        # Pick the best answer and supplement with additional context
+        # Only add secondary results if they are genuinely close in score
+        # and actually different from the best answer
         parts = [best_answer]
-        seen = {best_answer}
-        for score, q, a in knowledge[1:3]:
-            if score > 0.1 and a not in seen and len(a) > 20:
+        seen = {best_answer[:40]}
+        for score, q, a in knowledge[1:2]:
+            if score >= best_score * 0.85 and a[:40] not in seen and len(a) > 30:
                 parts.append(a)
-                seen.add(a)
-        answer = ' '.join(parts)
+                seen.add(a[:40])
+        answer = '\n\n'.join(parts)
     else:
+        # factual — just return the single best answer
         answer = best_answer
 
     # Apply persona prefix if set

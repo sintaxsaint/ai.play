@@ -173,6 +173,11 @@ class Parser:
         # ai.persona("text")
         if directive == 'persona':
             self.expect(TT.LPAREN)
+            if not self.match(TT.STRING):
+                raise ParseError(
+                    f"ai.persona() requires quoted text at line {self.peek().line}. "
+                    f'Example: ai.persona("You are a helpful assistant.")'
+                )
             text = self.read_value()
             self.expect(TT.RPAREN)
             return AIPersona(text)
@@ -224,6 +229,34 @@ class Parser:
             path = self.read_value()
             self.expect(TT.RPAREN)
             return AILog(path)
+
+        # ai.train(url)
+        if directive == 'train':
+            self.expect(TT.LPAREN)
+            url = self.read_value_greedy()
+            self.expect(TT.RPAREN)
+            return AITrain(url)
+
+        # ai.name(text)
+        if directive == 'name':
+            self.expect(TT.LPAREN)
+            text = self.read_value_greedy()
+            self.expect(TT.RPAREN)
+            return AIName(text)
+
+        # ai.version(text)
+        if directive == 'version':
+            self.expect(TT.LPAREN)
+            text = self.read_value_greedy()
+            self.expect(TT.RPAREN)
+            return AIVersion(text)
+
+        # ai.creator(text)
+        if directive == 'creator':
+            self.expect(TT.LPAREN)
+            text = self.read_value_greedy()
+            self.expect(TT.RPAREN)
+            return AICreator(text)
 
         # ai.transfer(number)
         if directive == 'transfer':

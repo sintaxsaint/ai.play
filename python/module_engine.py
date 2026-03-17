@@ -104,21 +104,47 @@ def _parse_aimod(path):
     output_type = meta.get('output', 'text')
     description = meta.get('description', '')
 
-    # Parse training pairs from body
+    # Split body into sections by ---
+    sections = content.split('---')
+    # Section 0 = header (already parsed), 1 = training, 2 = web, 3 = skills
+    training_body = sections[1] if len(sections) > 1 else body
+
+    # Parse training pairs — stop at Web.training or Skills.inject
     pairs = []
-    for line in body.splitlines():
-        line = line.strip()
-        if not line or line.startswith('#') or line.startswith('Training.data'):
+    in_pairs = False
+    for line in training_body.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
             continue
-        if ':' in line:
-            q, _, a = line.partition(':')
+        if stripped.startswith('Training.data'):
+            in_pairs = True
+            continue
+        if stripped.startswith('Web.training') or stripped.startswith('Skills.inject'):
+            break
+        if not in_pairs:
+            # No Training.data header found yet — treat all lines as pairs
+            in_pairs = True
+        if ':' in stripped:
+            q, _, a = stripped.partition(':')
             q, a = q.strip(), a.strip()
-            # Unescape \n in answers (allows multiline code in pairs)
             a = a.replace('\\n', '\n')
             if q and a:
                 pairs.append({'question': q, 'answer': a})
 
-    return AIModule(
+    # Parse Skills.inject for tone and on_request directives
+    skills_tone = ''
+    on_requests = {}
+    if len(sections) > 3:
+        for line in sections[3].splitlines():
+            line = line.strip()
+            if line.startswith('tone:'):
+                skills_tone = line[5:].strip()
+            elif line.startswith('on_request('):
+                key = line.split('(')[1].split(')')[0]
+                val = line.partition(':')[2].strip()
+                on_requests[key] = val
+
+    mod = AIModule(
         name        = name,
         version     = version,
         type_       = type_,
@@ -128,6 +154,9 @@ def _parse_aimod(path):
         pairs       = pairs,
         path        = path,
     )
+    mod.skills_tone  = skills_tone
+    mod.on_requests  = on_requests
+    return mod
 
 
 def resolve_module(name_or_path):
