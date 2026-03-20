@@ -9,7 +9,7 @@ description = "ai.play — The programming language for AI systems"
 readme = "README.md"
 license = {text = "SARL v1.1"}
 authors = [
-    {name = "sintaxsaint", url = "https://github.com/sintaxsaint"}
+    {name = "sintaxsaint"}
 ]
 keywords = ["ai", "language", "local", "llm", "assistant", "offline"]
 classifiers = [
