@@ -9,9 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,19 +61,65 @@ jobs:
           & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
         shell: powershell
 
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: python/aiplay-setup.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install build scikit-learn flask requests
+
+      - name: Build pip package
+        run: |
+          cd python
+          mkdir -p aiplay_pkg/aiplay
+          cp *.py aiplay_pkg/aiplay/
+          cp ../pyproject.toml aiplay_pkg/ 2>/dev/null || true
+          cd aiplay_pkg
+          python -m build --wheel
+
+      - name: Upload pip wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-wheel
+          path: python/aiplay_pkg/dist/*.whl
+
+  release:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+
       - name: Delete existing latest release
-        run: gh release delete latest --yes
-        shell: powershell
+        run: gh release delete latest --yes || true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
 
       - name: Create latest release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: Latest Build
-          body: Built automatically from the latest commit on main.
-          files: python/aiplay-setup.exe
+          body: |
+            Built automatically from the latest commit on main.
+
+            **Windows:** Download `aiplay-setup.exe`
+            **Linux/Mac:** `pip install aiplay` or `curl -sSL https://raw.githubusercontent.com/sintaxsaint/ai.play/main/install.sh | bash`
+          files: |
+            windows-installer/aiplay-setup.exe
+            pip-wheel/*.whl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
