@@ -117,7 +117,7 @@ jobs:
             Built automatically from the latest commit on main.
 
             **Windows:** Download `aiplay-setup.exe`
-            **Linux/Mac:** `pip install aiplay` or `curl -sSL https://raw.githubusercontent.com/sintaxsaint/ai.play/main/install.sh | bash`
+            **Linux/Mac:** `pip install aiplay(currently not working)` or `curl -sSL https://raw.githubusercontent.com/sintaxsaint/ai.play/main/install.sh | bash`
           files: |
             windows-installer/aiplay-setup.exe
             pip-wheel/*.whl
