@@ -31,6 +31,7 @@ jobs:
         run: |
           cd python
           pyinstaller --onedir --name aip `
+            --hidden-import=wave
             --add-data "lexer.py;." `
             --add-data "parser.py;." `
             --add-data "ast_nodes.py;." `
@@ -117,7 +118,7 @@ jobs:
             Built automatically from the latest commit on main.
 
             **Windows:** Download `aiplay-setup.exe`
-            **Linux/Mac:** `pip install aiplay(currently not working)` or `curl -sSL https://raw.githubusercontent.com/sintaxsaint/ai.play/main/install.sh | bash`
+            **Linux/Mac:** `curl -sSL https://raw.githubusercontent.com/sintaxsaint/ai.play/main/install.sh | bash`
           files: |
             windows-installer/aiplay-setup.exe
             pip-wheel/*.whl
