@@ -31,7 +31,9 @@ jobs:
         run: |
           cd python
           pyinstaller --onedir --name aip `
+            --hidden-import=smtplib
             --hidden-import=wave
+            --hidden-import=email.mime
             --add-data "lexer.py;." `
             --add-data "parser.py;." `
             --add-data "ast_nodes.py;." `
