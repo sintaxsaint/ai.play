@@ -25,26 +25,11 @@ Installs to `C:\Program Files\aiplay\`, adds `aip` to PATH, registers `.aip` fil
 curl -sSL https://raw.githubusercontent.com/sintaxsaint/ai.play/main/install.sh | bash
 ```
 
-Or via pip:
-
-```bash
-pip install aiplay
-```
+> pip support was cut due to unexpected reasons.
 
 **Chrome OS**
 
 Not supported. Possibly never. If you're reading this on a Chromebook — genuinely, why? Open an issue and tell us. We're not judging. We're a little judging. We want to know.
-
-**Python / Google Colab**
-
-```python
-import aiplay
-aiplay.run("""
-ai.enable()
-ai.web(yes)
-test.ui(yes)
-""")
-```
 
 ---
 
