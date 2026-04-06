@@ -217,7 +217,7 @@ HTML = """<!DOCTYPE html>
     bubble.className = 'bubble';
     const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const codeStarters = ['for ', 'def ', 'class ', 'import ', 'while ', 'count =', 'name =', 'with open'];
-    const hasNewlines = text.split('\n').length > 1;
+    const hasNewlines = text.split('\\n').length > 1;
     const looksLikeCode = codeStarters.some(function(k){ return escaped.trimLeft().indexOf(k) === 0; });
     if (looksLikeCode || hasNewlines) {
       const pre = document.createElement('pre');
