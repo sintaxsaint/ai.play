@@ -64,8 +64,11 @@ def _record_until_silence(silence_threshold=500, silence_duration=1.5, max_secon
         for _ in range(max_chunks):
             data = stream.read(1024, exception_on_overflow=False)
             frames.append(data)
-            # RMS volume
-            shorts = struct.unpack(f'{len(data)//2}h', data)
+            # RMS volume — trim to even byte count before unpacking 16-bit samples
+            even = data[:len(data) // 2 * 2]
+            if not even:
+                continue
+            shorts = struct.unpack(f'{len(even) // 2}h', even)
             rms = math.sqrt(sum(s*s for s in shorts) / len(shorts))
             if rms < silence_threshold:
                 silent_chunks += 1
@@ -87,18 +90,20 @@ def _record_until_silence(silence_threshold=500, silence_duration=1.5, max_secon
 def _transcribe_faster_whisper(audio_bytes):
     try:
         from faster_whisper import WhisperModel
-        import io, wave
         model = WhisperModel("tiny", device="cpu", compute_type="int8")
-        # Write to temp wav
-        tmp = tempfile.mktemp(suffix='.wav')
-        with wave.open(tmp, 'wb') as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(16000)
-            wf.writeframes(audio_bytes)
-        segments, _ = model.transcribe(tmp, beam_size=1)
-        text = ' '.join(s.text for s in segments).strip()
-        os.remove(tmp)
+        fd, tmp = tempfile.mkstemp(suffix='.wav')
+        os.close(fd)
+        try:
+            with wave.open(tmp, 'wb') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(16000)
+                wf.writeframes(audio_bytes)
+            segments, _ = model.transcribe(tmp, beam_size=1)
+            text = ' '.join(s.text for s in segments).strip()
+        finally:
+            try: os.remove(tmp)
+            except OSError: pass
         return text if text else None
     except ImportError:
         return None
@@ -109,17 +114,20 @@ def _transcribe_faster_whisper(audio_bytes):
 def _transcribe_sr(audio_bytes):
     try:
         import speech_recognition as sr
-        import io, wave
         r = sr.Recognizer()
-        tmp = tempfile.mktemp(suffix='.wav')
-        with wave.open(tmp, 'wb') as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(16000)
-            wf.writeframes(audio_bytes)
-        with sr.AudioFile(tmp) as source:
-            audio = r.record(source)
-        os.remove(tmp)
+        fd, tmp = tempfile.mkstemp(suffix='.wav')
+        os.close(fd)
+        try:
+            with wave.open(tmp, 'wb') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(16000)
+                wf.writeframes(audio_bytes)
+            with sr.AudioFile(tmp) as source:
+                audio = r.record(source)
+        finally:
+            try: os.remove(tmp)
+            except OSError: pass
         return r.recognize_google(audio)
     except Exception:
         return None

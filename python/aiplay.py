@@ -38,7 +38,8 @@ def _load(name):
 _MODULES = ['ast_nodes','lexer','parser','runtime','format_detector',
             'memory_engine','skills_engine','module_engine','user_memory',
             'intent_engine','voice_engine','video_engine','server','ui_server',
-            'notify_engine','vision_trainer','ai_yes','call_handler','interpreter']
+            'notify_engine','vision_trainer','ai_yes','call_handler',
+            'admin_engine','mcp_engine','sandbox_engine','interpreter']
 for _m in _MODULES:
     sys.modules.pop(_m, None)
 
@@ -60,6 +61,9 @@ _load('notify_engine')
 _load('vision_trainer')
 _load('ai_yes')
 _load('call_handler')
+_load('admin_engine')
+_load('mcp_engine')
+_load('sandbox_engine')
 _load('interpreter')
 _load('parser')
 
@@ -87,7 +91,7 @@ from interpreter import RuntimeError as AIPRuntimeError
 # ─────────────────────────────────────────────────────────────────────────────
 
 BANNER = """
- ai.play v0.6 — The language of AIs
+ ai.play v0.8 — The language of AIs
  github.com/sintaxsaint/ai.play
 """
 

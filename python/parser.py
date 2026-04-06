@@ -237,6 +237,43 @@ class Parser:
             self.expect(TT.RPAREN)
             return AITrain(url)
 
+        # ai.language(lang)
+        if directive == 'language':
+            self.expect(TT.LPAREN)
+            lang = self.read_value_greedy()
+            self.expect(TT.RPAREN)
+            return AILanguage(lang)
+
+        # ai.schedule(interval, event)
+        if directive == 'schedule':
+            self.expect(TT.LPAREN)
+            interval = self.read_value()
+            self.expect(TT.COMMA)
+            event = self.read_value_greedy()
+            self.expect(TT.RPAREN)
+            return AISchedule(interval, event)
+
+        # ai.encrypt(yes/key)
+        if directive == 'encrypt':
+            self.expect(TT.LPAREN)
+            key = self.read_value_greedy()
+            self.expect(TT.RPAREN)
+            return AIEncrypt(key)
+
+        # ai.mcp(url)
+        if directive == 'mcp':
+            self.expect(TT.LPAREN)
+            url = self.read_value_greedy()
+            self.expect(TT.RPAREN)
+            return AIMcp(url)
+
+        # ai.admin(mode)
+        if directive == 'admin':
+            self.expect(TT.LPAREN)
+            mode = self.read_value()
+            self.expect(TT.RPAREN)
+            return AIAdmin(mode)
+
         # ai.name(text)
         if directive == 'name':
             self.expect(TT.LPAREN)
@@ -468,6 +505,59 @@ class Parser:
             self.advance()
             expr = self.parse_expr()
             return Assign(name, expr)
+
+        # sandbox.start/run/install
+        if name == 'sandbox' and self.match(TT.DOT):
+            self.advance()
+            directive = str(self.advance().value)
+            if directive == 'start':
+                self.expect(TT.LPAREN)
+                mode = self.read_value() if not self.match(TT.RPAREN) else 'venv'
+                self.expect(TT.RPAREN)
+                return SandboxStart(mode)
+            if directive == 'run':
+                self.expect(TT.LPAREN)
+                cmd = self.read_value_greedy()
+                self.expect(TT.RPAREN)
+                return SandboxRun(cmd)
+            if directive == 'install':
+                self.expect(TT.LPAREN)
+                pkg = self.read_value_greedy()
+                self.expect(TT.RPAREN)
+                return SandboxInstall(pkg)
+
+        # artifacts.on(yes)
+        if name == 'artifacts' and self.match(TT.DOT):
+            self.advance()  # consume dot
+            directive = str(self.advance().value)
+            if directive == 'on':
+                self.expect(TT.LPAREN)
+                val = self.read_value()
+                self.expect(TT.RPAREN)
+                return ArtifactsOn(val)
+
+        # technique.add(name, source)
+        if name == 'technique' and self.match(TT.DOT):
+            self.advance()  # consume dot
+            directive = str(self.advance().value)
+            if directive == 'add':
+                self.expect(TT.LPAREN)
+                tname = self.read_value()
+                source = None
+                if self.match(TT.COMMA):
+                    self.advance()
+                    source = self.read_value_greedy()
+                self.expect(TT.RPAREN)
+                return TechniqueAdd(tname, source)
+
+        # output.deny()
+        if name == 'output' and self.match(TT.DOT):
+            self.advance()
+            directive = str(self.advance().value)
+            if directive == 'deny':
+                self.expect(TT.LPAREN)
+                self.expect(TT.RPAREN)
+                return OutputDeny()
 
         # Def call: myFunc()
         if self.match(TT.LPAREN):

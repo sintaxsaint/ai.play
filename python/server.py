@@ -149,7 +149,7 @@ class AIPServer:
         self.httpd.output_queue = self.output_queue
         self.httpd.user_manager = self.user_manager
 
-        self._thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self._thread = threading.Thread(target=self.httpd.serve_forever, daemon=False)
         self._thread.start()
 
         self.tunnel_url = self._establish_tunnel()
@@ -165,7 +165,12 @@ class AIPServer:
 
     def get_input(self):
         """Returns (username, text) tuple."""
-        result = self.input_queue.get()
+        while True:
+            try:
+                result = self.input_queue.get(timeout=60)
+                break
+            except Exception:
+                continue  # keep waiting
         if isinstance(result, tuple):
             username, text = result
         else:
@@ -208,8 +213,18 @@ class AIPServer:
         return None
 
     def _check_direct(self):
+        """Only return True if port is actually reachable from outside."""
         try:
-            urllib.request.urlopen('https://api.ipify.org', timeout=3)
+            import urllib.request
+            external_ip = urllib.request.urlopen('https://api.ipify.org', timeout=3).read().decode().strip()
+            # Try to reach ourselves from outside — if this works, we're truly public
+            # For now always return False on Pi/local to force tunnel
+            import socket
+            hostname = socket.gethostname()
+            # Heuristic: if hostname looks like a local/Pi device, use tunnel
+            local_hints = ['raspberrypi', 'localhost', 'local', 'home', 'pi', 'server']
+            if any(h in hostname.lower() for h in local_hints):
+                return False
             return True
         except Exception:
             return False

@@ -65,6 +65,8 @@ class Interpreter:
         self.ai_yes         = None
         self.fallback_msg   = None
         self.ai_name        = None
+        self.ai_language    = 'english'
+        self.ai_encrypt     = False
         self.ai_version     = None
         self.ai_creator     = None
         self.log_path       = None
@@ -77,6 +79,13 @@ class Interpreter:
 
         # Track last raw query for web + memory
         self._last_raw_query = ''
+        self._encrypt_key = None
+        self.artifacts_enabled = False
+        self.output_deny   = False
+        self.mcp_engine    = None
+        self.sandbox       = None
+        self.admin_engine  = None
+        self._load_techniques()
 
     # ──────────────────────────────────────
     # ENTRY
@@ -316,6 +325,10 @@ class Interpreter:
                         self.module_engine.load(mod)
                 # Set model mode
                 self.model_mode = config.get('model_mode', 'factual')
+                # Auto-enable artifacts if model supports file generation
+                if config.get('artifacts', False):
+                    self.artifacts_enabled = True
+                    self._inject_artifact_pairs()
             return
 
         # ─── ai.notify ────────────────────────────────────
@@ -327,7 +340,13 @@ class Interpreter:
             self.notify_engine.register(node.channel, node.target)
             return
 
-        # ─── ai.fallback ──────────────────────────────────
+        # ─── ai.language ──────────────────────────────────
+        if self._is(node, 'AILanguage'):
+            self._require_enabled(node)
+            self.ai_language = node.lang.lower()
+            print(f"[ai.play] Language: {node.lang}")
+            return
+
         if self._is(node, 'AITrain'):
             self._require_enabled(node)
             url = node.url
@@ -373,6 +392,133 @@ class Interpreter:
             self.ai_creator = node.creator
             self._inject_identity_pairs()
             print(f"[ai.play] Creator: {node.creator}")
+            return
+
+        if self._is(node, 'AISchedule'):
+            self._require_enabled(node)
+            import threading, time
+            def _run_scheduled():
+                while True:
+                    # Parse interval or time
+                    when = node.when
+                    if ':' in when:
+                        # Clock time e.g. 09:00
+                        import datetime
+                        h, m = map(int, when.split(':'))
+                        now = datetime.datetime.now()
+                        target = now.replace(hour=h, minute=m, second=0, microsecond=0)
+                        if target < now:
+                            target += datetime.timedelta(days=1)
+                        time.sleep((target - datetime.datetime.now()).total_seconds())
+                    else:
+                        # Interval e.g. 30s, 5m, 1h
+                        unit = when[-1]
+                        val = int(when[:-1])
+                        secs = {'s': 1, 'm': 60, 'h': 3600}.get(unit, 60) * val
+                        time.sleep(secs)
+                    if node.path:
+                        try:
+                            with open(node.path, 'r', encoding='utf-8') as f:
+                                src = f.read()
+                            from lexer import Lexer
+                            from parser import Parser
+                            prog = Parser(Lexer(src).tokenize()).parse()
+                            sub = Interpreter()
+                            sub.run(prog)
+                        except Exception as e:
+                            print(f"[ai.play] Schedule error: {e}")
+            t = threading.Thread(target=_run_scheduled, daemon=True)
+            t.start()
+            print(f"[ai.play] Scheduled: {node.when}")
+            return
+
+        if self._is(node, 'AIEncrypt'):
+            self._require_enabled(node)
+            self._encrypt_key = node.key
+            print(f"[ai.play] Memory encryption: enabled")
+            return
+
+        if self._is(node, 'TechniqueAdd'):
+            self._require_enabled(node)
+            name = node.name
+            source = node.source or ''
+            # If source is a file path, read it
+            if source and os.path.exists(source):
+                with open(source, 'r', encoding='utf-8') as f:
+                    source = f.read()
+            # Store as training pair
+            q = f"how do I {name.replace('_', ' ')}"
+            if self.embedder.vocabulary_:
+                vec = self.embedder.embed_raw(q + ' ' + source)
+                self.train_store.append({'question': q, 'answer': source, 'vec': vec})
+            else:
+                self.train_store.append({'question': q, 'answer': source, 'vec': {}})
+            # Save to techniques file for persistence
+            tech_file = os.path.join(os.getcwd(), '.aiplay_techniques.data')
+            with open(tech_file, 'a', encoding='utf-8') as f:
+                f.write(f"{q}:{source}\n")
+            print(f"[ai.play] Technique saved: {name}")
+            return
+
+        if self._is(node, 'AIMcp'):
+            self._require_enabled(node)
+            from mcp_engine import MCPEngine
+            if self.mcp_engine is None:
+                self.mcp_engine = MCPEngine()
+            conn = self.mcp_engine.connect(node.url)
+            if conn:
+                # Inject tool knowledge as training pairs
+                pairs = self.mcp_engine.inject_training_pairs()
+                for p in pairs:
+                    self.train_store.append({'question': p['question'], 'answer': p['answer'], 'vec': {}})
+            return
+
+        if self._is(node, 'AIAdmin'):
+            self._require_enabled(node)
+            from admin_engine import AdminEngine
+            self.admin_engine = AdminEngine(mode=str(node.mode))
+            print(f"[ai.play] Admin access: {node.mode}")
+            return
+
+        if self._is(node, 'SandboxStart'):
+            self._require_enabled(node)
+            from sandbox_engine import SandboxEngine
+            self.sandbox = SandboxEngine()
+            ok = self.sandbox.start(str(node.mode))
+            if not ok:
+                print("[ai.play] Sandbox failed to start")
+                self.sandbox = None
+            return
+
+        if self._is(node, 'SandboxInstall'):
+            if not self.sandbox:
+                print("[ai.play] No sandbox running — use sandbox.start() first")
+                return
+            result = self.sandbox.install(str(node.package))
+            print(str(result))
+            return
+
+        if self._is(node, 'SandboxRun'):
+            if not self.sandbox:
+                print("[ai.play] No sandbox running — use sandbox.start() first")
+                return
+            result = self.sandbox.run(str(node.command))
+            print(str(result))
+            return
+
+        if self._is(node, 'ArtifactsOn'):
+            self._require_enabled(node)
+            enabled = str(node.val).lower() not in ('no', 'false', '0')
+            self.artifacts_enabled = enabled
+            if enabled:
+                self._inject_artifact_pairs()
+            print(f"[ai.play] Artifacts: {'enabled' if enabled else 'disabled'}")
+            return
+
+        if self._is(node, 'OutputDeny'):
+            self._require_enabled(node)
+            self.output_deny = True
+            print(f"[ai.play] Output deny: enabled (enforcement in v1)")
             return
 
         if self._is(node, 'AIFallback'):
@@ -529,6 +675,21 @@ class Interpreter:
             else:
                 text = input()
 
+            # Handle technique saving command
+            if text.lower().startswith('save this as a technique') or 'save as technique' in text.lower():
+                import re
+                m = re.search(r'technique[:\s]+(.+)', text, re.IGNORECASE)
+                name = m.group(1).strip().replace(' ', '_') if m else 'unnamed'
+                last_response = self.env.get('Response', '')
+                if last_response:
+                    q = f"how do I {name.replace('_', ' ')}"
+                    tech_file = os.path.join(os.getcwd(), '.aiplay_techniques.data')
+                    with open(tech_file, 'a', encoding='utf-8') as f:
+                        f.write(f"{q}:{last_response}\n")
+                    self.train_store.append({'question': q, 'answer': last_response, 'vec': {}})
+                    return f"Technique '{name}' saved."
+                return "Nothing to save yet."
+
             self._last_raw_query = text
 
             # Voice input — if voice enabled, listen instead of type
@@ -675,7 +836,30 @@ class Interpreter:
             if intent.wants('web') and not self.caps.get('web'):
                 pass  # already handled in Similaritize
 
-            return '\n'.join(outputs)
+            final = '\n'.join(outputs)
+            # Execute any sandbox or admin commands in the response
+            final = self._handle_action_commands(final)
+            # Translate if language set and not english
+            if self.ai_language not in ('english', 'en', ''):
+                try:
+                    import urllib.request, urllib.parse, json as _json
+                    lang_map = {
+                        'french': 'fr', 'spanish': 'es', 'german': 'de',
+                        'italian': 'it', 'portuguese': 'pt', 'dutch': 'nl',
+                        'japanese': 'ja', 'chinese': 'zh', 'korean': 'ko',
+                        'arabic': 'ar', 'russian': 'ru', 'hindi': 'hi',
+                        'auto': 'auto'
+                    }
+                    target = lang_map.get(self.ai_language, self.ai_language[:2])
+                    url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl={target}&dt=t&q={urllib.parse.quote(final)}"
+                    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req, timeout=5) as r:
+                        data = _json.loads(r.read())
+                    translated = ''.join(part[0] for part in data[0] if part[0])
+                    final = translated
+                except Exception:
+                    pass  # Fall back to English if translation fails
+            return final
 
         if self._is(node, 'VarRef'):
             if node.name not in self.env:
@@ -856,6 +1040,101 @@ class Interpreter:
     # ──────────────────────────────────────
     # HELPERS
     # ──────────────────────────────────────
+
+    def _load_techniques(self):
+        """Load saved techniques from disk on startup."""
+        tech_file = os.path.join(os.getcwd(), '.aiplay_techniques.data')
+        if os.path.exists(tech_file):
+            try:
+                with open(tech_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if ':' in line:
+                            q, _, a = line.partition(':')
+                            self.train_store.append({'question': q.strip(), 'answer': a.strip(), 'vec': {}})
+            except Exception:
+                pass
+
+    def _handle_action_commands(self, text):
+        """Parse and execute sandbox/admin action tags in AI responses."""
+        import re
+
+        # <run>command</run> — run in sandbox
+        def exec_sandbox(m):
+            cmd = m.group(1).strip()
+            if self.sandbox and self.sandbox.is_ready():
+                result = self.sandbox.run(cmd)
+                return f"```\n$ {cmd}\n{result}\n```"
+            elif self.admin_engine:
+                result = self.admin_engine.run(cmd, reason="AI wants to run a command")
+                return f"```\n$ {cmd}\n{result}\n```"
+            return m.group(0)
+
+        # <install>package</install> — install in sandbox
+        def exec_install(m):
+            pkg = m.group(1).strip()
+            if self.sandbox and self.sandbox.is_ready():
+                result = self.sandbox.install(pkg)
+                return f"Installing {pkg}... {'done' if result.success else 'failed'}"
+            elif self.admin_engine:
+                result = self.admin_engine.install(pkg)
+                return f"Installing {pkg}... {'done' if result.success else 'failed'}"
+            return m.group(0)
+
+        # <python>code</python> — run Python in sandbox
+        def exec_python(m):
+            code = m.group(1).strip()
+            if self.sandbox and self.sandbox.is_ready():
+                result = self.sandbox.run_python(code)
+                return f"```\n{result}\n```"
+            return m.group(0)
+
+        text = re.sub(r'<run>(.*?)</run>', exec_sandbox, text, flags=re.DOTALL)
+        text = re.sub(r'<install>(.*?)</install>', exec_install, text, flags=re.DOTALL)
+        text = re.sub(r'<python>(.*?)</python>', exec_python, text, flags=re.DOTALL)
+        return text
+
+    def _translate(self, text, target_lang):
+        """Translate text using Google Translate free endpoint."""
+        try:
+            import urllib.request, urllib.parse, json
+            lang_codes = {
+                'french': 'fr', 'spanish': 'es', 'german': 'de', 'italian': 'it',
+                'portuguese': 'pt', 'dutch': 'nl', 'russian': 'ru', 'japanese': 'ja',
+                'chinese': 'zh', 'korean': 'ko', 'arabic': 'ar', 'hindi': 'hi',
+                'polish': 'pl', 'swedish': 'sv', 'norwegian': 'no', 'danish': 'da',
+                'finnish': 'fi', 'turkish': 'tr', 'greek': 'el', 'czech': 'cs',
+            }
+            code = lang_codes.get(target_lang.lower(), target_lang[:2])
+            url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl={code}&dt=t&q={urllib.parse.quote(text)}"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as r:
+                data = json.loads(r.read().decode())
+            return ''.join(item[0] for item in data[0] if item[0])
+        except Exception:
+            return text  # fallback to English if translation fails
+
+    def _inject_artifact_pairs(self):
+        """Inject artifact syntax knowledge so the AI knows how to produce files."""
+        pairs = [
+            ("create a python script", '<artifact type="py" name="script.py">\ndef hello():\n    print("Hello!")\nhello()\n</artifact>'),
+            ("make a python file", '<artifact type="py" name="output.py">\n# Your Python code here\nprint("Hello!")\n</artifact>'),
+            ("write a html page", '<artifact type="html" name="page.html">\n<!DOCTYPE html>\n<html>\n<body>\n<h1>Hello</h1>\n</body>\n</html>\n</artifact>'),
+            ("create a text file", '<artifact type="txt" name="output.txt">\nYour text content here\n</artifact>'),
+            ("make a javascript file", '<artifact type="js" name="script.js">\nconsole.log("Hello!");\n</artifact>'),
+            ("create a json file", '<artifact type="json" name="data.json">\n{"key": "value"}\n</artifact>'),
+            ("write a bash script", '<artifact type="sh" name="script.sh">\n#!/bin/bash\necho "Hello!"\n</artifact>'),
+            ("make a css file", '<artifact type="css" name="style.css">\nbody { font-family: sans-serif; }\n</artifact>'),
+            ("how do I create a file as an artifact", 'Wrap the file content in an artifact tag like this: <artifact type="py" name="myfile.py">code here</artifact>'),
+            ("what file types can you make", 'I can create artifacts of any type: .py .html .js .css .json .txt .sh .md and more. Just ask me to create a file.'),
+        ]
+        for q, a in pairs:
+            if self.embedder.vocabulary_:
+                vec = self.embedder.embed_raw(q + ' ' + a)
+                self.train_store = [p for p in self.train_store if p['question'] != q]
+                self.train_store.append({'question': q, 'answer': a, 'vec': vec})
+            else:
+                self.train_store.append({'question': q, 'answer': a, 'vec': {}})
 
     def _inject_identity_pairs(self):
         """Inject identity knowledge into train_store so the AI knows who it is."""

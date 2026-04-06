@@ -5,131 +5,7 @@ AST node definitions for ai.play
 class Node:
     pass
 
-# --- Top level ---
-class Program(Node):
-    def __init__(self, stmts):
-        self.stmts = stmts
-
-# --- Statements ---
-class AIEnable(Node):
-    """ai.enable()"""
-    pass
-
-class AIModel(Node):
-    """ai.model(name) or ai.model(custom, path)"""
-    def __init__(self, name, path=None):
-        self.name = name
-        self.path = path
-
-class AICapability(Node):
-    """ai.web/memory/vision/diffusion/video/voice(value)"""
-    def __init__(self, cap, value):
-        self.cap   = cap
-        self.value = value
-
-class AIPersona(Node):
-    """ai.persona("system prompt text")"""
-    def __init__(self, text):
-        self.text = text
-
-class TrainEmbed(Node):
-    """train.embed(path)"""
-    def __init__(self, path):
-        self.path = path
-
-class TestUI(Node):
-    """test.ui(yes/no)"""
-    def __init__(self, value):
-        self.value = value
-
-class AISkills(Node):
-    """ai.skills(path)"""
-    def __init__(self, path):
-        self.path = path
-
-class OutIn(Node):
-    """out.in(key, user=auto, storage=./path/, upload=https://url)"""
-    def __init__(self, key, user=None, storage=None, upload=None):
-        self.key     = key
-        self.user    = user      # None | 'auto' | username string
-        self.storage = storage   # shared storage directory
-        self.upload  = upload    # remote URL for memory upload
-
-class Assign(Node):
-    """name = expr"""
-    def __init__(self, name, expr):
-        self.name = name
-        self.expr = expr
-
-class Print(Node):
-    """print(expr)"""
-    def __init__(self, expr):
-        self.expr = expr
-
-class WhileLoop(Node):
-    """while(yes): body"""
-    def __init__(self, body):
-        self.body = body
-
-class DefBlock(Node):
-    """def name(): body"""
-    def __init__(self, name, body):
-        self.name = name
-        self.body = body
-
-class CustomModule(Node):
-    """custom.module(name_or_path)"""
-    def __init__(self, name):
-        self.name = name
-
-class MakeModule(Node):
-    """make.module(name) — creates a blank .aimod template"""
-    def __init__(self, name):
-        self.name = name
-
-class CallDef(Node):
-    """name()  — call a user-defined def block"""
-    def __init__(self, name):
-        self.name = name
-
-# --- Expressions ---
-class InputExpr(Node):
-    """input()"""
-    pass
-
-class EmbedExpr(Node):
-    def __init__(self, expr):
-        self.expr = expr
-
-class TokenizeExpr(Node):
-    def __init__(self, expr):
-        self.expr = expr
-
-class SimilarizeExpr(Node):
-    def __init__(self, expr):
-        self.expr = expr
-
-class RespondExpr(Node):
-    def __init__(self, expr):
-        self.expr = expr
-
-class VarRef(Node):
-    def __init__(self, name):
-        self.name = name
-
-class StringLit(Node):
-    def __init__(self, value):
-        self.value = value
-
-class NumberLit(Node):
-    def __init__(self, value):
-        self.value = value
-
-class PathLit(Node):
-    def __init__(self, value):
-        self.value = value
-
-# ─── v0.6 nodes ───────────────────────────────────────────
+# ─── nodes ────────────────────────────────────────────────
 
 class AINotify(Node):
     """ai.notify(channel, target)"""
@@ -270,6 +146,62 @@ class AICreator(Node):
 class AITrain(Node):
     """ai.train(url) — download and embed training data from URL"""
     def __init__(self, url): self.url = url
+
+class AILanguage(Node):
+    """ai.language(lang) — set response language, default english"""
+    def __init__(self, lang): self.lang = lang
+
+class AISchedule(Node):
+    """ai.schedule(interval, event) — run on schedule"""
+    def __init__(self, interval, event): self.interval = interval; self.event = event
+
+class AIEncrypt(Node):
+    """ai.encrypt(yes/no) — encrypt memory/storage at rest"""
+    def __init__(self, val): self.val = val
+
+class AILanguage(Node):
+    """ai.language(english)"""
+    def __init__(self, lang): self.lang = lang
+
+class AISchedule(Node):
+    """ai.schedule(interval, ./script.aip) or ai.schedule(09:00, ./morning.aip)"""
+    def __init__(self, when, path): self.when = when; self.path = path
+
+class AIEncrypt(Node):
+    """ai.encrypt(yes/key)"""
+    def __init__(self, key): self.key = key
+
+class TechniqueAdd(Node):
+    """technique.add(name, path_or_text)"""
+    def __init__(self, name, source): self.name = name; self.source = source
+
+class ArtifactsOn(Node):
+    """artifacts.on(yes)"""
+    def __init__(self, val): self.val = val
+
+class AIMcp(Node):
+    """ai.mcp(url)"""
+    def __init__(self, url): self.url = url
+
+class SandboxStart(Node):
+    """sandbox.start(venv/docker)"""
+    def __init__(self, mode): self.mode = mode
+
+class SandboxRun(Node):
+    """sandbox.run(command)"""
+    def __init__(self, command): self.command = command
+
+class SandboxInstall(Node):
+    """sandbox.install(package)"""
+    def __init__(self, package): self.package = package
+
+class AIAdmin(Node):
+    """ai.admin(ask/destructive/full)"""
+    def __init__(self, mode): self.mode = mode
+
+class OutputDeny(Node):
+    """output.deny() — suppress AI output (enforcement in v1)"""
+    pass
 
 # ── compatibility aliases ─────────────────────────────────────────────────────
 # The interpreter uses these old names — keep them pointing at the new classes

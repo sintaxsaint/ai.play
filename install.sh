@@ -5,7 +5,7 @@
 set -e
 
 echo ""
-echo " ai.play v0.7 — Linux installer"
+echo " ai.play v0.8 — Linux installer"
 echo " github.com/sintaxsaint/ai.play"
 echo ""
 

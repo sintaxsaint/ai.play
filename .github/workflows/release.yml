@@ -31,9 +31,17 @@ jobs:
         run: |
           cd python
           pyinstaller --onedir --name aip `
-            --hidden-import=smtplib
-            --hidden-import=wave
-            --hidden-import=email.mime
+            --hidden-import=wave `
+            --hidden-import=struct `
+            --hidden-import=smtplib `
+            --hidden-import=email.mime.text `
+            --hidden-import=email.mime.multipart `
+            --hidden-import=email.mime.base `
+            --hidden-import=email.encoders `
+            --hidden-import=http.server `
+            --hidden-import=webbrowser `
+            --hidden-import=uuid `
+            --hidden-import=urllib.error `
             --add-data "lexer.py;." `
             --add-data "parser.py;." `
             --add-data "ast_nodes.py;." `
@@ -53,6 +61,9 @@ jobs:
             --add-data "vision_trainer.py;." `
             --add-data "ai_yes.py;." `
             --add-data "call_handler.py;." `
+            --add-data "admin_engine.py;." `
+            --add-data "mcp_engine.py;." `
+            --add-data "sandbox_engine.py;." `
             --collect-all sklearn `
             --icon=aip.ico `
             aiplay.py
