@@ -218,7 +218,7 @@ HTML = """<!DOCTYPE html>
     const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const codeStarters = ['for ', 'def ', 'class ', 'import ', 'while ', 'count =', 'name =', 'with open'];
     const hasNewlines = text.split('\\n').length > 1;
-    const looksLikeCode = codeStarters.some(function(k){ return escaped.trimLeft().indexOf(k) === 0; });
+    const looksLikeCode = codeStarters.some(function(k){ return text.trimStart().indexOf(k) === 0; });
     if (looksLikeCode || hasNewlines) {
       const pre = document.createElement('pre');
       pre.style.cssText = 'margin:0;white-space:pre-wrap;font-family:monospace;font-size:13px;line-height:1.5;';
