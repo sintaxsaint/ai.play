@@ -81,8 +81,69 @@ jobs:
           name: windows-installer
           path: python/aiplay-setup.exe
 
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pyinstaller scikit-learn flask requests
+
+      - name: Build exe with PyInstaller
+        run: |
+          cd python
+          pyinstaller --onedir --name aip \
+            --hidden-import=wave \
+            --hidden-import=struct \
+            --hidden-import=smtplib \
+            --hidden-import=email.mime.text \
+            --hidden-import=email.mime.multipart \
+            --hidden-import=email.mime.base \
+            --hidden-import=email.encoders \
+            --hidden-import=http.server \
+            --hidden-import=webbrowser \
+            --hidden-import=uuid \
+            --hidden-import=urllib.error \
+            --add-data "lexer.py:." \
+            --add-data "parser.py:." \
+            --add-data "ast_nodes.py:." \
+            --add-data "interpreter.py:." \
+            --add-data "runtime.py:." \
+            --add-data "format_detector.py:." \
+            --add-data "memory_engine.py:." \
+            --add-data "skills_engine.py:." \
+            --add-data "module_engine.py:." \
+            --add-data "user_memory.py:." \
+            --add-data "server.py:." \
+            --add-data "ui_server.py:." \
+            --add-data "intent_engine.py:." \
+            --add-data "voice_engine.py:." \
+            --add-data "video_engine.py:." \
+            --add-data "notify_engine.py:." \
+            --add-data "vision_trainer.py:." \
+            --add-data "ai_yes.py:." \
+            --add-data "call_handler.py:." \
+            --add-data "admin_engine.py:." \
+            --add-data "mcp_engine.py:." \
+            --add-data "sandbox_engine.py:." \
+            --collect-all sklearn \
+            aiplay.py
+          tar -czf aip-linux-x86_64.tar.gz -C dist/aip .
+
+      - name: Upload Linux build
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: python/aip-linux-x86_64.tar.gz
+
   release:
-    needs: [build-windows]
+    needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
@@ -102,8 +163,10 @@ jobs:
             Built automatically from the latest commit on main.
 
             **Windows:** Download `aiplay-setup.exe`
-            **Linux/Mac:** `curl -sSL https://raw.githubusercontent.com/sintaxsaint/ai.play/main/install.sh | bash`
+            **Linux x86_64:** Download `aip-linux-x86_64.tar.gz`, extract, run `./aip yourfile.aip`
+            **Linux ARM / Raspberry Pi / Mac:** `curl -sSL https://raw.githubusercontent.com/sintaxsaint/ai.play/main/install.sh | bash`
           files: |
             windows-installer/aiplay-setup.exe
+            linux-build/aip-linux-x86_64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
