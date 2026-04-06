@@ -325,7 +325,7 @@ class Parser:
         directive = self.advance().value
         if directive == 'ui':
             self.expect(TT.LPAREN)
-            val = self.read_value()
+            val = 'yes' if self.match(TT.RPAREN) else self.read_value()
             self.expect(TT.RPAREN)
             return TestUI(val)
         raise ParseError(f"Unknown test directive: {directive!r}")
