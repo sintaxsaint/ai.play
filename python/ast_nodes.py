@@ -7,6 +7,50 @@ class Node:
 
 # ─── nodes ────────────────────────────────────────────────
 
+class AIEnable(Node):
+    """ai.enable()"""
+    pass
+
+class AIModel(Node):
+    """ai.model(name) or ai.model(custom, path)"""
+    def __init__(self, name, path=None):
+        self.name = name
+        self.path = path
+
+class AICapability(Node):
+    """ai.web/memory/vision/diffusion/video/voice(value)"""
+    def __init__(self, cap, value):
+        self.cap   = cap
+        self.value = value
+
+class AIPersona(Node):
+    """ai.persona("system prompt text")"""
+    def __init__(self, text):
+        self.text = text
+
+class AISkills(Node):
+    """ai.skills(path)"""
+    def __init__(self, path):
+        self.path = path
+
+class OutIn(Node):
+    """out.in(key, user=auto, storage=./path/, upload=https://url)"""
+    def __init__(self, key, user=None, storage=None, upload=None):
+        self.key     = key
+        self.user    = user
+        self.storage = storage
+        self.upload  = upload
+
+class CustomModule(Node):
+    """custom.module(name_or_path)"""
+    def __init__(self, name):
+        self.name = name
+
+class MakeModule(Node):
+    """make.module(name)"""
+    def __init__(self, name):
+        self.name = name
+
 class AINotify(Node):
     """ai.notify(channel, target)"""
     def __init__(self, channel, target):
