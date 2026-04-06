@@ -2,7 +2,7 @@
 ; Nullsoft Scriptable Install System (NSIS)
 
 !define APPNAME "ai.play"
-!define VERSION "0.6"
+!define VERSION "0.8"
 !define PUBLISHER "sintaxsaint"
 !define INSTALL_DIR "$PROGRAMFILES64\aiplay"
 !define UNINSTALL_REG "Software\Microsoft\Windows\CurrentVersion\Uninstall\aiplay"
@@ -67,6 +67,9 @@ Section "ai.play Runtime" SecMain
     File "vision_trainer.py"
     File "ai_yes.py"
     File "call_handler.py"
+    File "admin_engine.py"
+    File "mcp_engine.py"
+    File "sandbox_engine.py"
 
     ; ── Create modules directory ────────────
     CreateDirectory "$INSTDIR\modules"
