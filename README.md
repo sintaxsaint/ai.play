@@ -27,6 +27,23 @@ curl -sSL https://raw.githubusercontent.com/sintaxsaint/ai.play/main/install.sh 
 
 > pip support was cut due to unexpected reasons.
 
+**VSCode Extension**
+
+Download `aiplay-*.vsix` from the latest release, then install it:
+
+- Open VS Code
+- Press `Ctrl+Shift+P` → **Extensions: Install from VSIX...**
+- Select the downloaded `.vsix` file
+
+Or from the terminal:
+```bash
+code --install-extension aiplay-0.2.0.vsix
+```
+
+Features: syntax highlighting for `.aip`, `.aimod`, `.aipmcp`, `.apicuz` files — press **F5** to run, **Ctrl+Shift+C** for a syntax check. A run button also appears in the status bar and editor title bar when a `.aip` file is open.
+
+---
+
 **Chrome OS**
 
 Not supported. Possibly never. If you're reading this on a Chromebook — genuinely, why? Open an issue and tell us. We're not judging. We're a little judging. We want to know.
@@ -568,6 +585,25 @@ aiplay/
   pyproject.toml      pip package definition
   aip.ico             file type icon
 ```
+
+---
+
+## Troubleshooting
+
+**Test UI shows ERR_CONNECTION_REFUSED**
+
+The browser opened before the server was ready. Hit refresh — it should connect. If it still fails:
+- Another `aip` process may already be using port 7732. Close it and try again.
+- On Windows, Windows Defender Firewall sometimes blocks localhost on first run. Allow it when prompted, or add an inbound rule for port 7732.
+- Run the terminal as administrator if the firewall prompt never appeared.
+
+**`aip` is not recognised as a command after install**
+
+Open a new terminal — the PATH change made by the installer only applies to new sessions. If it still isn't found, reboot or manually add `C:\Program Files\aiplay` to your system PATH.
+
+**Module not found errors on startup**
+
+You are likely running an older installed version against a newer `.aip` file. Download and run the latest `aiplay-setup.exe` from the releases page.
 
 ---
 

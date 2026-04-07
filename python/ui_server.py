@@ -321,11 +321,17 @@ class UIServer:
         self.httpd        = None
 
     def start(self):
-        self.httpd = HTTPServer(('localhost', UI_PORT), _UIHandler)
+        try:
+            self.httpd = HTTPServer(('localhost', UI_PORT), _UIHandler)
+        except OSError:
+            print(f"[ai.play] Test UI: port {UI_PORT} already in use — is another instance running?")
+            return
         self.httpd.input_queue  = self.input_queue
         self.httpd.output_queue = self.output_queue
-        t = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        t = threading.Thread(target=self.httpd.serve_forever, daemon=False)
         t.start()
+        import time
+        time.sleep(0.2)   # let serve_forever() start accepting before the browser opens
         url = f'http://localhost:{UI_PORT}'
         print(f"[ai.play] Test UI: {url}")
         webbrowser.open(url)
