@@ -35,7 +35,7 @@
       "patterns": [
         {
           "name": "keyword.control.aiplay",
-          "match": "\\bai\\.(?:enable|model|web|vision|diffusion|video|voice|memory|skills|persona|yes|notify|fallback|log|transfer|name|version|creator|language|schedule|encrypt|train|mcp|admin)\\b"
+          "match": "\\bai\\.(?:enable|model|web|vision|diffusion|video|voice|memory|skills|persona|yes|notify|fallback|log|transfer|name|version|creator|language|schedule|encrypt|train|mcp|admin|run)\\b"
         },
         {
           "name": "keyword.control.aiplay",
