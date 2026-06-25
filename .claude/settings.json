@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp \"c:\\\\Users\\\\eread\\\\Documents\\\\ai.play\\\\python\\\\admin_engine.py\" \"C:\\\\Program Files\\\\aiplay\\\\admin_engine.py\")",
+      "Bash(cp \"c:\\\\Users\\\\eread\\\\Documents\\\\ai.play\\\\python\\\\mcp_engine.py\" \"C:\\\\Program Files\\\\aiplay\\\\mcp_engine.py\")",
+      "Bash(cp \"c:\\\\Users\\\\eread\\\\Documents\\\\ai.play\\\\python\\\\sandbox_engine.py\" \"C:\\\\Program Files\\\\aiplay\\\\sandbox_engine.py\")",
+      "Bash(unzip -l aiplay-0.1.0.vsix)",
+      "Bash(unzip -p aiplay-0.1.0.vsix extension/package.json)",
+      "Bash(unzip -p aiplay-0.1.0.vsix extension/extension.js)",
+      "Bash(unzip -p aiplay-0.1.0.vsix extension/syntaxes/aiplay.tmLanguage.json)",
+      "Bash(npx --yes @vscode/vsce --version)",
+      "Bash(mkdir -p vscode-extension/syntaxes)",
+      "Bash(unzip -p aiplay-0.1.0.vsix extension/language-configuration.json)",
+      "Bash(unzip -p aiplay-0.1.0.vsix extension/README.md)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('icon','no icon'\\)\\)\")",
+      "Bash(npx --yes @vscode/vsce package --no-dependencies)"
+    ]
+  }
+}

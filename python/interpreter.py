@@ -1,7 +1,8 @@
 """
 ai.play interpreter — walks the AST and executes against the runtime.
 Handles: multi-turn, memory (rule + generative), vision, diffusion,
-         streaming, persona, file-type auto-detection, test.ui, out.in
+         streaming, persona, file-type auto-detection, test.ui, out.in,
+         ai.run (file execution with permission gate)
 """
 
 import os
@@ -98,6 +99,34 @@ class Interpreter:
     def run(self, program):
         for stmt in program.stmts:
             self.exec_stmt(stmt)
+        # If test.ui() was used but no explicit while loop followed,
+        # auto-run the pipeline so the UI actually works
+        if self.ui_server:
+            self._auto_ui_loop()
+
+    def _auto_ui_loop(self):
+        print("[ai.play] UI ready — waiting for messages")
+        while True:
+            try:
+                text = self.ui_server.get_input()
+                self._last_raw_query = text
+                if self.memory:
+                    self.memory.add('user', text)
+                # Run full pipeline: respond(embed(Similaritize(tokenize(text))))
+                response = self.eval_expr(
+                    RespondExpr(EmbedExpr(SimilarizeExpr(TokenizeExpr(Literal(text)))))
+                )
+                response = str(response)
+                if self.memory:
+                    self.memory.add('ai', response)
+                if self.log_file:
+                    import time as _time
+                    self.log_file.write("[" + _time.strftime("%Y-%m-%d %H:%M:%S") + "] " + response + "\n")
+                    self.log_file.flush()
+                self.ui_server.send_output(response)
+            except KeyboardInterrupt:
+                print("\n[ai.play] Stopped.")
+                break
 
     # ──────────────────────────────────────
     # STATEMENTS
@@ -438,6 +467,65 @@ class Interpreter:
             print(f"[ai.play] Memory encryption: enabled")
             return
 
+        if self._is(node, 'AIRun'):
+            self._require_enabled(node)
+            path = node.path
+            # Resolve variable reference
+            if path in self.env:
+                path = str(self.env[path])
+            # Resolve relative to cwd (which is the .aip's folder)
+            if not os.path.isabs(path):
+                path = os.path.join(os.getcwd(), path)
+            path = os.path.normpath(path)
+            if not os.path.exists(path):
+                print(f"[ai.play] ai.run: file not found: {os.path.basename(path)}")
+                return
+            fname = os.path.basename(path)
+            # Permission check — skip if admin full, always ask otherwise
+            has_full_access = self.admin_engine and getattr(self.admin_engine, 'mode', '') == 'full'
+            if not has_full_access:
+                try:
+                    answer = input(f"[ai.play] Run {fname}? (yes/no): ").strip().lower()
+                except EOFError:
+                    answer = 'no'
+                if answer not in ('yes', 'y'):
+                    print(f"[ai.play] Run cancelled.")
+                    return
+            # Determine runner by extension
+            import subprocess
+            ext = os.path.splitext(fname)[1].lower()
+            if ext == '.aip':
+                with open(path, 'r', encoding='utf-8') as _f:
+                    _src = _f.read()
+                from lexer import Lexer as _Lex
+                from parser import Parser as _Par
+                _sub = Interpreter()
+                _sub.run(_Par(_Lex(_src).tokenize()).parse())
+            else:
+                _runners = {
+                    '.py':  [sys.executable, path],
+                    '.sh':  ['bash', path],
+                    '.bat': [path],
+                    '.cmd': [path],
+                    '.js':  ['node', path],
+                }
+                _cmd = _runners.get(ext, [path])
+                try:
+                    _res = subprocess.run(_cmd, capture_output=True, text=True,
+                                          timeout=30, cwd=os.path.dirname(path))
+                    if _res.stdout:
+                        print(_res.stdout, end='')
+                    if _res.stderr:
+                        print(f"[ai.play] stderr: {_res.stderr}", end='')
+                    if _res.returncode != 0:
+                        print(f"[ai.play] {fname} exited with code {_res.returncode}")
+                except FileNotFoundError:
+                    print(f"[ai.play] No runner found for {ext} files — is the runtime installed?")
+                except subprocess.TimeoutExpired:
+                    print(f"[ai.play] {fname} timed out after 30 seconds")
+            print(f"[ai.play] Done: {fname}")
+            return
+
         if self._is(node, 'TechniqueAdd'):
             self._require_enabled(node)
             name = node.name
@@ -448,7 +536,7 @@ class Interpreter:
                     source = f.read()
             # Store as training pair
             q = f"how do I {name.replace('_', ' ')}"
-            if self.embedder.vocabulary_:
+            if self.embedder.vocab:
                 vec = self.embedder.embed_raw(q + ' ' + source)
                 self.train_store.append({'question': q, 'answer': source, 'vec': vec})
             else:
@@ -774,8 +862,8 @@ class Interpreter:
 
             # Memory augmentation — inject relevant memory into store
             if active_memory and self._last_raw_query:
-                ctx = self.memory.get_context(self._last_raw_query)
-                mem_text = self.memory.format_for_context(ctx)
+                ctx = active_memory.get_context(self._last_raw_query)
+                mem_text = active_memory.format_for_context(ctx)
                 if mem_text:
                     vec = self.embedder.embed_raw(mem_text)
                     store.insert(0, {'question': self._last_raw_query, 'answer': mem_text, 'vec': vec})
@@ -1129,7 +1217,7 @@ class Interpreter:
             ("what file types can you make", 'I can create artifacts of any type: .py .html .js .css .json .txt .sh .md and more. Just ask me to create a file.'),
         ]
         for q, a in pairs:
-            if self.embedder.vocabulary_:
+            if self.embedder.vocab:
                 vec = self.embedder.embed_raw(q + ' ' + a)
                 self.train_store = [p for p in self.train_store if p['question'] != q]
                 self.train_store.append({'question': q, 'answer': a, 'vec': vec})
@@ -1157,7 +1245,7 @@ class Interpreter:
         ]
 
         for q, a in pairs:
-            if not self.embedder.vocabulary_:
+            if not self.embedder.vocab:
                 # Embedder not fitted yet — store raw for later
                 self.train_store.append({'question': q, 'answer': a, 'vec': {}})
             else:

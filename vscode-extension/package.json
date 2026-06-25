@@ -1,0 +1,162 @@
+{
+  "name": "aiplay",
+  "displayName": "ai.play",
+  "description": "Syntax highlighting and run support for .aip files",
+  "version": "0.2.0",
+  "publisher": "sintaxsaint",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "aiplay",
+    "aip",
+    "ai",
+    "local ai",
+    "sintaxsaint"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sintaxsaint/ai.play"
+  },
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "aiplay",
+        "aliases": [
+          "ai.play",
+          "aiplay",
+          "aip"
+        ],
+        "extensions": [
+          ".aip",
+          ".aimod",
+          ".aipmcp",
+          ".apicuz"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "aiplay",
+        "scopeName": "source.aiplay",
+        "path": "./syntaxes/aiplay.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "aiplay.run",
+        "title": "Run ai.play File",
+        "icon": "$(play)",
+        "category": "ai.play"
+      },
+      {
+        "command": "aiplay.check",
+        "title": "Syntax Check",
+        "icon": "$(check)",
+        "category": "ai.play"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "aiplay.run",
+          "when": "resourceExtname == .aip",
+          "group": "navigation"
+        },
+        {
+          "command": "aiplay.check",
+          "when": "resourceExtname == .aip",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "aiplay.run",
+          "when": "resourceExtname == .aip",
+          "group": "aiplay"
+        },
+        {
+          "command": "aiplay.check",
+          "when": "resourceExtname == .aip",
+          "group": "aiplay"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "aiplay.run",
+        "key": "f5",
+        "when": "resourceExtname == .aip"
+      },
+      {
+        "command": "aiplay.check",
+        "key": "ctrl+shift+c",
+        "when": "resourceExtname == .aip"
+      }
+    ],
+    "configuration": {
+      "title": "ai.play",
+      "properties": {
+        "aiplay.executablePath": {
+          "type": "string",
+          "default": "aip",
+          "description": "Path to the aip executable. Default uses PATH."
+        }
+      }
+    },
+    "debuggers": [
+      {
+        "type": "aiplay",
+        "label": "ai.play",
+        "languages": [
+          "aiplay"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "file"
+            ],
+            "properties": {
+              "file": {
+                "type": "string",
+                "description": "Path to the .aip file to run",
+                "default": "${file}"
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "aiplay",
+            "request": "launch",
+            "name": "Run ai.play File",
+            "file": "${file}"
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "ai.play: Run File",
+            "description": "Run an ai.play file",
+            "body": {
+              "type": "aiplay",
+              "request": "launch",
+              "name": "Run ai.play File",
+              "file": "^\"${file}\""
+            }
+          }
+        ]
+      }
+    ],
+    "breakpoints": [
+      {
+        "language": "aiplay"
+      }
+    ]
+  }
+}

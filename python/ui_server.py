@@ -215,7 +215,6 @@ HTML = """<!DOCTYPE html>
     avatar.textContent = role === 'user' ? 'You' : 'AI';
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
-    const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const codeStarters = ['for ', 'def ', 'class ', 'import ', 'while ', 'count =', 'name =', 'with open'];
     const hasNewlines = text.split('\\n').length > 1;
     const looksLikeCode = codeStarters.some(function(k){ return text.trimStart().indexOf(k) === 0; });

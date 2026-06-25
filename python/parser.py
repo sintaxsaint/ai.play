@@ -302,6 +302,13 @@ class Parser:
             self.expect(TT.RPAREN)
             return TransferCall(number)
 
+        # ai.run(file)
+        if directive == 'run':
+            self.expect(TT.LPAREN)
+            path = self.read_value_greedy()
+            self.expect(TT.RPAREN)
+            return AIRun(path)
+
         raise ParseError(f"Unknown ai directive: {directive!r} at line {name.line}")
 
     # ─── train.embed ──────────────────────────────────────

@@ -142,8 +142,30 @@ jobs:
           name: linux-build
           path: python/aip-linux-x86_64.tar.gz
 
+  build-vscode-extension:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build VSCode extension
+        run: |
+          cd vscode-extension
+          npx --yes @vscode/vsce package --no-dependencies
+
+      - name: Upload VSCode extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-extension
+          path: vscode-extension/aiplay-*.vsix
+
   release:
-    needs: [build-windows, build-linux]
+    needs: [build-windows, build-linux, build-vscode-extension]
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
@@ -165,8 +187,10 @@ jobs:
             **Windows:** Download `aiplay-setup.exe`
             **Linux x86_64:** Download `aip-linux-x86_64.tar.gz`, extract, run `./aip yourfile.aip`
             **Linux ARM / Raspberry Pi / Mac:** `curl -sSL https://raw.githubusercontent.com/sintaxsaint/ai.play/main/install.sh | bash`
+            **VSCode Extension:** Download `aiplay-*.vsix`, then in VS Code run **Extensions: Install from VSIX...**
           files: |
             windows-installer/aiplay-setup.exe
             linux-build/aip-linux-x86_64.tar.gz
+            vscode-extension/aiplay-*.vsix
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

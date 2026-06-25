@@ -1,0 +1,155 @@
+{
+  "name": "ai.play",
+  "scopeName": "source.aiplay",
+  "fileTypes": ["aip", "aimod", "aipmcp", "apicuz"],
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#string" },
+    { "include": "#directive" },
+    { "include": "#capability" },
+    { "include": "#identity" },
+    { "include": "#event" },
+    { "include": "#pipeline" },
+    { "include": "#control" },
+    { "include": "#module" },
+    { "include": "#artifact" },
+    { "include": "#variable_assign" },
+    { "include": "#number" },
+    { "include": "#boolean" },
+    { "include": "#path" }
+  ],
+  "repository": {
+    "comment": {
+      "name": "comment.line.number-sign.aiplay",
+      "match": "#.*$"
+    },
+    "string": {
+      "name": "string.quoted.double.aiplay",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        { "name": "constant.character.escape.aiplay", "match": "\\\\." }
+      ]
+    },
+    "directive": {
+      "patterns": [
+        {
+          "name": "keyword.control.aiplay",
+          "match": "\\bai\\.(?:enable|model|web|vision|diffusion|video|voice|memory|skills|persona|yes|notify|fallback|log|transfer|name|version|creator|language|schedule|encrypt|train|mcp|admin)\\b"
+        },
+        {
+          "name": "keyword.control.aiplay",
+          "match": "\\btrain\\.embed\\b"
+        },
+        {
+          "name": "keyword.control.aiplay",
+          "match": "\\btest\\.ui\\b"
+        },
+        {
+          "name": "keyword.control.aiplay",
+          "match": "\\bout\\.in\\b"
+        },
+        {
+          "name": "keyword.control.aiplay",
+          "match": "\\bartifacts\\.on\\b"
+        },
+        {
+          "name": "keyword.control.aiplay",
+          "match": "\\btechnique\\.add\\b"
+        },
+        {
+          "name": "keyword.control.aiplay",
+          "match": "\\boutput\\.deny\\b"
+        }
+      ]
+    },
+    "capability": {
+      "patterns": [
+        {
+          "name": "support.function.aiplay",
+          "match": "\\b(?:tokenize|Similaritize|embed|respond|input|log)\\b"
+        }
+      ]
+    },
+    "identity": {
+      "patterns": [
+        {
+          "name": "entity.name.function.aiplay",
+          "match": "\\b(?:vision\\.train|notify\\.(?:email|sms|discord|webhook)|make\\.module|custom\\.module|sandbox\\.(?:start|install|run))\\b"
+        }
+      ]
+    },
+    "event": {
+      "patterns": [
+        {
+          "name": "entity.name.tag.aiplay",
+          "match": "\\bon\\.(?:connect|disconnect|silence|keyword|detect)\\b"
+        }
+      ]
+    },
+    "pipeline": {
+      "patterns": [
+        {
+          "name": "keyword.other.aiplay",
+          "match": "\\b(?:print|input)\\b"
+        }
+      ]
+    },
+    "control": {
+      "patterns": [
+        {
+          "name": "keyword.control.flow.aiplay",
+          "match": "\\b(?:while|if|else|def)\\b"
+        }
+      ]
+    },
+    "module": {
+      "patterns": [
+        {
+          "name": "support.class.aiplay",
+          "match": "Training\\.data\\(pairs\\):"
+        },
+        {
+          "name": "support.class.aiplay",
+          "match": "Web\\.training\\(sources\\):"
+        },
+        {
+          "name": "support.class.aiplay",
+          "match": "Skills\\.inject:"
+        }
+      ]
+    },
+    "artifact": {
+      "patterns": [
+        {
+          "name": "markup.bold.aiplay",
+          "match": "<artifact[^>]*>"
+        },
+        {
+          "name": "markup.bold.aiplay",
+          "match": "</artifact>"
+        }
+      ]
+    },
+    "variable_assign": {
+      "patterns": [
+        {
+          "name": "variable.other.aiplay",
+          "match": "^\\s*([A-Z][a-zA-Z0-9_]*)\\s*="
+        }
+      ]
+    },
+    "number": {
+      "name": "constant.numeric.aiplay",
+      "match": "\\b[0-9]+(?:\\.[0-9]+)?\\b"
+    },
+    "boolean": {
+      "name": "constant.language.aiplay",
+      "match": "\\b(?:yes|no)\\b"
+    },
+    "path": {
+      "name": "string.other.path.aiplay",
+      "match": "(?:\\./|\\.\\./|~/)[^\\s,)]*"
+    }
+  }
+}

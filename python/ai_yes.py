@@ -102,6 +102,24 @@ TARGETS = {
         'model_mode':   'factual',
         'description':  'Text to speech voice synthesis',
     },
+    'jarvis': {
+        'search':       'analytical assistant reasoning instruct',
+        'candidates':   ['mistralai/Mistral-7B-Instruct-v0.3',
+                         'NousResearch/Hermes-3-Llama-3.1-8B',
+                         'Qwen/Qwen2.5-7B-Instruct'],
+        'caps':         ['web', 'memory', 'voice'],
+        'model_mode':   'thinking',
+        'description':  'Analytical AI assistant — precise, formal, mission-ready',
+    },
+    'karen': {
+        'search':       'friendly helpful assistant instruct',
+        'candidates':   ['Qwen/Qwen2.5-7B-Instruct',
+                         'mistralai/Mistral-7B-Instruct-v0.3',
+                         'NousResearch/Hermes-3-Llama-3.1-8B'],
+        'caps':         ['web', 'memory', 'voice'],
+        'model_mode':   'factual',
+        'description':  'Friendly mission-support AI — helpful, upbeat, always ready',
+    },
 }
 
 ALLOWED_LICENCES = {'mit', 'apache-2.0', 'apache 2.0', 'apache2'}

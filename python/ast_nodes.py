@@ -192,18 +192,6 @@ class AITrain(Node):
     def __init__(self, url): self.url = url
 
 class AILanguage(Node):
-    """ai.language(lang) — set response language, default english"""
-    def __init__(self, lang): self.lang = lang
-
-class AISchedule(Node):
-    """ai.schedule(interval, event) — run on schedule"""
-    def __init__(self, interval, event): self.interval = interval; self.event = event
-
-class AIEncrypt(Node):
-    """ai.encrypt(yes/no) — encrypt memory/storage at rest"""
-    def __init__(self, val): self.val = val
-
-class AILanguage(Node):
     """ai.language(english)"""
     def __init__(self, lang): self.lang = lang
 
@@ -246,6 +234,10 @@ class AIAdmin(Node):
 class OutputDeny(Node):
     """output.deny() — suppress AI output (enforcement in v1)"""
     pass
+
+class AIRun(Node):
+    """ai.run(file) — run a file in the same folder or with terminal access"""
+    def __init__(self, path): self.path = path
 
 # ── compatibility aliases ─────────────────────────────────────────────────────
 # The interpreter uses these old names — keep them pointing at the new classes

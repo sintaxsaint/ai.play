@@ -248,6 +248,27 @@ Gives the AI shell access to the host machine.
 
 ---
 
+### Run a File
+```
+ai.run(./script.py)
+ai.run(./build.sh)
+ai.run(./task.aip)
+```
+
+Runs a file from the same folder as the `.aip`. Supports `.py`, `.sh`, `.bat`, `.js`, and `.aip`. Output is printed to the terminal.
+
+If `ai.admin(full)` is not set the user is asked for permission before the file runs. The AI will always ask — it will never execute silently without consent.
+
+Works with variables inside a loop, so the user can name the file at runtime:
+```
+ai.enable()
+while(yes):
+    filename = input()
+    ai.run(filename)
+```
+
+---
+
 ### Sandbox
 ```
 sandbox.start(venv)
@@ -277,14 +298,37 @@ ai.yes(copilot)
 ai.yes(gemini)
 ai.yes(whisper)
 ai.yes(elevenlabs)
+ai.yes(jarvis)
+ai.yes(karen)
 ```
 
 Finds the best MIT or Apache 2.0 licensed equivalent on HuggingFace, checks the licence, downloads weights, auto-configures capabilities.
+
+| Target | Personality | Auto-enables |
+|---|---|---|
+| `chatgpt` | General purpose conversational | web, memory |
+| `claude` | Reasoning focused | web, memory |
+| `copilot` | Code generation | — |
+| `gemini` | Multimodal with vision | web, vision, memory |
+| `sora` | Text to video | video |
+| `midjourney` | Image generation | diffusion |
+| `dalle` | Image generation | diffusion |
+| `whisper` | Speech to text | voice |
+| `elevenlabs` | Text to speech | voice |
+| `jarvis` | Analytical, formal, mission-ready | web, memory, voice |
+| `karen` | Friendly, supportive, always ready | web, memory, voice |
 
 Full local ChatGPT equivalent in 3 lines:
 ```
 ai.enable()
 ai.yes(chatgpt)
+test.ui(yes)
+```
+
+Iron Man's JARVIS in 3 lines:
+```
+ai.enable()
+ai.yes(jarvis)
 test.ui(yes)
 ```
 
@@ -610,6 +654,7 @@ You are likely running an older installed version against a newer `.aip` file. D
 ## Roadmap
 
 - **v0.8** — Artifact system, MCP connector, sandbox engine, admin access, `output.deny()` stub ✓
+- **v0.9** — `ai.run()` file execution, `ai.yes(jarvis)`, `ai.yes(karen)` ✓
 - **v1.0** — Self AI multi-network ensemble, `.apicuz` multi-AI routing, `.aipmcp` MCP server modules, `ai.language()`, `technique.add()`, LLVM compiled runtime, AI5 device spec
 
 ---
